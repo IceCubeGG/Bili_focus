@@ -1,0 +1,3 @@
+export function varint(value: number | bigint): number[] { let rest = BigInt(value); const bytes: number[] = []; do { let byte = Number(rest & 127n); rest >>= 7n; if (rest) byte |= 128; bytes.push(byte); } while (rest); return bytes; }
+export const field = (key: number, value: string | number | bigint): number[] => typeof value === 'string' ? [key * 8 + 2, ...varint(new TextEncoder().encode(value).length), ...new TextEncoder().encode(value)] : [key * 8, ...varint(value)];
+export function danmuFixture(mode = 1): Uint8Array { const data = [...field(1, 9007199254740999n), ...field(2, 5000), ...field(3, mode), ...field(5, 16777215), ...field(7, 'Hello 世界'), ...field(12, '9007199254740999')]; return new Uint8Array([10, ...varint(data.length), ...data]); }

@@ -1,0 +1,9 @@
+import { describe, expect, it } from 'vitest';
+import { downloadName, downloadRequest, downloadType } from '../src/core/downloads';
+describe('download boundaries', () => {
+  it('accepts only a real video and selected part, not URLs or paths', () => { expect(downloadRequest({ bvid: 'BV1xx411c7mD', kind: 'video', cid: '123' })).toEqual({ bvid: 'BV1xx411c7mD', kind: 'video', cid: '123' }); for (const input of [{ bvid: 'https://x',kind:'video',cid:'1' },{bvid:'BV1xx411c7mD',kind:'video',cid:'../x'},{bvid:'BV1xx411c7mD',kind:'anything'}]) expect(() => downloadRequest(input)).toThrow(); });
+  it('ignores arbitrary renderer cover URLs and part IDs for covers', () => { expect(downloadRequest({bvid:'BV1xx411c7mD',kind:'cover',cid:'malicious',url:'http://localhost/'}).cid).toBeNull(); });
+  it('sanitizes filenames without paths, reserved names or unlimited lengths', () => { expect(downloadName('../a:b?')).not.toMatch(/[/\\:?]/); expect(downloadName('CON')).toBe('video'); expect(downloadName('NUL.txt')).toBe('video'); expect(downloadName(' ')).toBe('video'); expect([...downloadName('😀'.repeat(100))]).toHaveLength(70); });
+  it('detects MP4 and WebM from bytes rather than URL extensions', () => { expect(downloadType(new Uint8Array([0,0,0,24,102,116,121,112,105,115,111,109]),'video').extension).toBe('mp4'); expect(downloadType(new Uint8Array([26,69,223,163]),'video').extension).toBe('webm'); });
+  it('validates common cover formats and excludes SVG/HTML/error bodies', () => { expect(downloadType(new Uint8Array([255,216,255]),'cover').extension).toBe('jpg'); expect(downloadType(new Uint8Array([137,80,78,71,13,10,26,10]),'cover').extension).toBe('png'); for(const kind of ['cover','video'] as const) expect(() => downloadType(new TextEncoder().encode('<html>error</html>'),kind)).toThrow(); });
+});

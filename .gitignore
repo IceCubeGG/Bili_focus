@@ -1,0 +1,17 @@
+node_modules/
+.npm-cache/
+.gradle-cache/
+dist/
+dist-electron/
+release/
+coverage/
+android/.gradle/
+android/local.properties
+android/captures/
+android/app/build/
+android/build/
+android/app/src/main/assets/public/
+*.log
+.env
+.env.*
+!.env.example

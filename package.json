@@ -1,0 +1,74 @@
+{
+  "name": "bili-focus",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A desktop and Android Bilibili companion with a user-controlled recommendation feed.",
+  "author": "Bili Focus",
+  "license": "UNLICENSED",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "setup:desktop": "install-electron",
+    "dev:web": "vite",
+    "typecheck": "tsc --noEmit",
+    "build:electron": "node scripts/build-electron.mjs",
+    "build:web": "npm run typecheck && vite build",
+    "build": "npm run typecheck && vite build && npm run build:electron",
+    "start": "electron .",
+    "test": "vitest run",
+    "test:desktop": "electron scripts/smoke-electron.cjs",
+    "test:feed": "electron scripts/smoke-feed.cjs",
+    "test:feed:fail-closed": "electron scripts/smoke-feed-fail-closed.cjs",
+    "test:subscribe": "electron scripts/smoke-subscribe.cjs",
+    "test:video": "electron scripts/smoke-video.cjs",
+    "package": "npm run build && electron-builder --win --dir",
+    "android:sync": "npm run build:web && cap sync android",
+    "android:build": "npm run android:sync && node scripts/build-android.mjs",
+    "android:open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2",
+    "lucide-react": "1.51.0",
+    "qrcode": "^1.5.4",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "shaka-player": "5.2.12"
+  },
+  "devDependencies": {
+    "@babel/parser": "7.29.9",
+    "@capacitor/cli": "8.5.2",
+    "@types/node": "24.19.1",
+    "@types/qrcode": "1.5.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.2",
+    "vitest": "5.0.3"
+  },
+  "overrides": {
+    "xcode": {
+      "uuid": "11.1.1"
+    }
+  },
+  "build": {
+    "appId": "app.bilifocus.desktop",
+    "productName": "Bili Focus",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "dir"
+    }
+  }
+}
