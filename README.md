@@ -1,37 +1,6 @@
 # Bili Focus — saved playback-compatible copy (2026-10-06)
 
-This separate copy restores the pre-quality-selector player. Watching explicitly uses the progressive MP4 request (`qn=64`, `fnval=1`, `fourk=0`, `platform=html5`) and a direct HTML video source, not Shaka/DASH attachment. There is no quality menu. Bilibili still chooses the available rendition and enforces access restrictions.
-
-English and 简体中文 switching, saved language preferences, sign-in, strict Browse presets, complete uploader/group libraries, Danmu, comments, fullscreen, video/cover downloads, and the previous Android stream/range repair remain. Reload restarts the selected part, as in the earlier direct player. The original quality-selection project and APK in the parent workspace are unchanged.
-
-Use the `Launch Bili Focus.cmd` in this folder, or `Launch Bili Focus - Compatibility.cmd` in the parent workspace. Close the running desktop app first. The launcher reuses the parent's installed Electron runtime when this copy has no local dependencies. It opens this copy's own production build and uses the same account/settings storage; do not run both variants simultaneously.
-
-Android handoff: `../../release/android/Bili-Focus-0.1.0-playback-compatible-debug.apk`. It uses the same app ID, version code, and development signing certificate as the existing debug app, so install it as an update without uninstalling to retain app data. Actual phone playback remains unverified; no device was accessed during this rollback.
-
-On another machine, run `npm ci` followed by `npm run build`. For Android, keep the existing SDK on C:, then run `npm run android:build`. In this workspace the build can reuse the parent cache with `$env:GRADLE_USER_HOME = 'D:\Maker\Bilibili3rdparty\.gradle-cache'`. Always run `npm run android:sync` before directly building with Gradle after moving the source copy, so Capacitor regenerates its dependency paths.
-
-A Bilibili companion with Windows desktop and Android clients. Roadmap steps 1–8 are implemented: account management, strict recommendation presets, followed-account libraries/groups, video playback with Danmu/comments, and video/cover downloads with folder selection and a queue.
-
-## Start the app
-
-The dependencies and production build are already prepared in this workspace. Double-click **Launch Bili Focus.cmd** to open the desktop client.
-
-Requires Node.js 22.12+ (Node.js 24 is used during development).
-
-```powershell
-npm install
-npm run setup:desktop
-npm run dev
-```
-
-For a production build:
-
-```powershell
-npm run build
-npm start
-```
-
-`npm run dev:web` opens an interface preview at http://127.0.0.1:5173. Account sign-in and live recommendations require a native desktop or Android host. Browser preview saves interface preferences and recommendation presets in local storage, separate from native settings. The Electron runtime is installed explicitly by `setup:desktop`, so Android-only setup does not download it automatically.
+This third-party Bilibili app is designed for a more focused viewing experience. It lets you group creators and filter out videos based on tags you select.
 
 ## What works now
 
@@ -75,15 +44,6 @@ npm run android:build
 
 Android requires SDK 36 and Java 21; Android Studio is optional for command-line builds. The minimum supported device is Android 9 (API 28). QR sign-in requires another device running the Bilibili app to scan the code. The build command recognizes this machine's existing C: SDK/JDK paths without changing global environment variables. See [Android build and migration instructions](docs/android-migration.md). Real-device playback, folder export and sign-in still need verification.
 
-## Next roadmap steps
-
-Step 9 verifies complete user journeys and persistence, followed by reliability/release packaging. Subscribe currently covers original video uploads, not text/image dynamics or repost display.
-
-Watching and downloads use the earlier progressive MP4 path. The watching UI has no quality selector or DASH attachment. Speed and Danmu visibility persist across part changes. HDR/Dolby, advanced audio-track choice, interactive branching and protected PGC are not implemented. Entitlements and previews are not bypassed. The browser-only preview cannot play native streams.
-
-Choose **Options → Interface language** for **English** or **简体中文**. The choice applies immediately and survives restart on desktop, Android and browser preview. Navigation, account/login panels, presets, subscription groups, player/comments controls and download controls are translated. Dates/numbers use the selected locale. Creator names, titles, tags, descriptions, messages and user-created preset/group names are not translated. Official Bilibili pages, OS dialogs/native video controls and unrecognized technical diagnostics retain their own language. The extra fullscreen exit overlay is removed; use Escape on desktop or system Back on Android.
-
-See [the implementation scope](docs/implementation-plan.md) for the agreed flow and next steps.
 
 ## Checks and packaging
 
