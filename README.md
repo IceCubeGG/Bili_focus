@@ -89,4 +89,4 @@ Bilibili account support uses its web passport interfaces, documented by the sou
 - [Comment operations](https://github.com/pskdje/bilibili-API-collect/blob/main/docs/comment/action.md)
 - [Android WebView process isolation](https://developer.android.com/reference/android/webkit/WebView#setDataDirectorySuffix(java.lang.String))
 
-Account tests use mock responses and never authenticate or revoke a real user's session. A real authenticated sign-in, captcha/SMS completion, and renewal need user verification. Bilibili can change its login page or reject embedded clients; no bypass of its verification or access controls is implemented.
+
