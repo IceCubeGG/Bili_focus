@@ -2,6 +2,7 @@ package app.bilifocus.desktop;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.provider.DocumentsContract;
@@ -21,6 +22,7 @@ final class BiliDownloads {
     private final Context context; private final SharedPreferences preferences; private final Resolver resolver;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final List<JSONObject> jobs = new ArrayList<>();
+    private JSONArray folders = new JSONArray();
     private String folder; private JSONObject active; private volatile boolean cancelled; private volatile HttpURLConnection connection;
     private boolean closed;
     private boolean loadError;
@@ -29,6 +31,12 @@ final class BiliDownloads {
         File staging=new File(context.getCacheDir(),"bili-download-stage"); File[] leftovers=staging.listFiles();
         if(leftovers!=null) for(File file:leftovers) if(file.isFile() && file.getName().matches("bili-[0-9]+\\.part")) file.delete();
         try {
+            folders = new JSONArray(preferences.getString("saveFolders", "[]")); if (folders.length() > 30) throw new Exception();
+            for (int i=0;i<folders.length();i++) {
+                JSONObject item=folders.getJSONObject(i); Uri uri=Uri.parse(item.getString("location"));
+                if (!item.getString("id").matches("[a-f0-9-]{36}") || !"content".equals(uri.getScheme()) || !DocumentsContract.isTreeUri(uri) || item.getString("label").length()>400) throw new Exception();
+            }
+            if (folder!=null) remember(Uri.parse(folder));
             JSONArray saved = new JSONArray(preferences.getString("downloadJobs","[]")); if (saved.length()>50) throw new Exception();
             for (int i=0;i<saved.length();i++) {
                 JSONObject job=saved.getJSONObject(i); BiliVideoClient.bvid(job.getString("bvid")); if (!job.getString("id").matches("[a-f0-9-]{36}") || !(job.getString("kind").equals("cover") || job.getString("kind").equals("video"))) throw new Exception();
@@ -45,7 +53,67 @@ final class BiliDownloads {
         String label=null; if (folder!=null) try { label="Selected folder · " + DocumentsContract.getTreeDocumentId(Uri.parse(folder)); } catch (Exception ignored) { label="Reselect the save folder"; }
         return new JSONObject().put("folder",label==null?JSONObject.NULL:label).put("jobs",list);
     }
-    private synchronized void save() { if(loadError) throw new IllegalStateException("Saved download history needs repair."); JSONArray list=new JSONArray(); for (JSONObject job:jobs) list.put(job); if (!preferences.edit().putString("downloadJobs",list.toString()).commit()) throw new IllegalStateException("Could not save the download queue."); }
+    private synchronized void save() { if(loadError) throw new IllegalStateException("Saved download history needs repair."); JSONArray list=new JSONArray(); for (JSONObject job:jobs) list.put(job); if (!preferences.edit().putString("downloadJobs",list.toString()).putString("saveFolders",folders.toString()).putString("downloadFolder",folder).commit()) throw new IllegalStateException("Could not save the download queue."); }
+    private void remember(Uri uri) throws Exception {
+        if (!"content".equals(uri.getScheme()) || !DocumentsContract.isTreeUri(uri)) throw new Exception("Select a folder.");
+        for (int i=0;i<folders.length();i++) if (folders.getJSONObject(i).getString("location").equals(uri.toString())) return;
+        if (folders.length()>=30) throw new Exception("Forget an old folder first (maximum 30).");
+        String label=DocumentsContract.getTreeDocumentId(uri); int split=label.lastIndexOf('/'); if(split>=0) label=label.substring(split+1);
+        if(label.length()>400) label=label.substring(0,400);
+        folders.put(new JSONObject().put("id",UUID.randomUUID().toString()).put("label",label).put("location",uri.toString()));
+    }
+    synchronized JSONObject folderSnapshot() throws Exception {
+        snapshot(); Object selected=JSONObject.NULL;
+        for(int i=0;i<folders.length();i++) if(folders.getJSONObject(i).getString("location").equals(folder)) selected=folders.getJSONObject(i).getString("id");
+        return new JSONObject().put("folders",new JSONArray(folders.toString())).put("activeFolderId",selected);
+    }
+    private synchronized JSONObject savedFolder(String id) throws Exception {
+        snapshot(); for(int i=0;i<folders.length();i++) if(folders.getJSONObject(i).getString("id").equals(id)) return new JSONObject(folders.getJSONObject(i).toString());
+        throw new Exception("Saved folder not found.");
+    }
+    synchronized JSONObject controlFolder(String id,String action) throws Exception {
+        JSONObject item=savedFolder(id);
+        if(action.equals("select")) choose(Uri.parse(item.getString("location")));
+        else if(action.equals("forget")) {
+            JSONArray next=new JSONArray(); for(int i=0;i<folders.length();i++) if(!folders.getJSONObject(i).getString("id").equals(id)) next.put(folders.getJSONObject(i));
+            folders=next; if(item.getString("location").equals(folder)) folder=null;
+            // Keep the SAF grant for downloads already queued to this destination. Never delete files.
+            save();
+        } else throw new Exception("Invalid folder action.");
+        return folderSnapshot();
+    }
+    private Uri tree(String id) throws Exception { return Uri.parse(savedFolder(id).getString("location")); }
+    JSONObject savedFiles(String id) throws Exception {
+        Uri tree=tree(id), children=DocumentsContract.buildChildDocumentsUriUsingTree(tree,DocumentsContract.getTreeDocumentId(tree));
+        List<JSONObject> files=new ArrayList<>(); boolean truncated=false; int scanned=0;
+        String[] columns={DocumentsContract.Document.COLUMN_DOCUMENT_ID,DocumentsContract.Document.COLUMN_DISPLAY_NAME,DocumentsContract.Document.COLUMN_MIME_TYPE,DocumentsContract.Document.COLUMN_SIZE,DocumentsContract.Document.COLUMN_LAST_MODIFIED};
+        try(Cursor cursor=context.getContentResolver().query(children,columns,null,null,null)) {
+            if(cursor==null) throw new Exception("Folder access changed. Select it again with the system picker.");
+            while(cursor.moveToNext()) {
+                if(++scanned>10000) { truncated=true; break; }
+                String name=cursor.getString(1),kind=DownloadFiles.mediaKind(name);
+                if(kind==null || DocumentsContract.Document.MIME_TYPE_DIR.equals(cursor.getString(2))) continue;
+                if(files.size()>=1000) { truncated=true; break; }
+                files.add(new JSONObject().put("id",cursor.getString(0)).put("name",name).put("kind",kind).put("bytes",Math.max(0,cursor.getLong(3))).put("modifiedAt",Math.max(0,cursor.getLong(4))));
+            }
+        }
+        files.sort((a,b)->{ int result=Long.compare(b.optLong("modifiedAt"),a.optLong("modifiedAt")); return result!=0?result:a.optString("name").compareTo(b.optString("name")); });
+        JSONArray list=new JSONArray(); for(JSONObject file:files) list.put(file);
+        return new JSONObject().put("folderId",id).put("files",list).put("truncated",truncated);
+    }
+    Intent savedFileIntent(String id,String fileId) throws Exception {
+        if(fileId==null || fileId.length()>4096) throw new Exception("Choose a video or cover from this folder.");
+        Uri tree=tree(id),children=DocumentsContract.buildChildDocumentsUriUsingTree(tree,DocumentsContract.getTreeDocumentId(tree)); int scanned=0;
+        try(Cursor cursor=context.getContentResolver().query(children,new String[]{DocumentsContract.Document.COLUMN_DOCUMENT_ID,DocumentsContract.Document.COLUMN_DISPLAY_NAME,DocumentsContract.Document.COLUMN_MIME_TYPE},null,null,null)) {
+            if(cursor!=null) while(cursor.moveToNext() && ++scanned<=10000) {
+                String name=cursor.getString(1);
+                if(fileId.equals(cursor.getString(0)) && DownloadFiles.mediaKind(name)!=null && !DocumentsContract.Document.MIME_TYPE_DIR.equals(cursor.getString(2))) {
+                    return new Intent(Intent.ACTION_VIEW).setDataAndType(DocumentsContract.buildDocumentUriUsingTree(tree,fileId),DownloadFiles.mediaMime(name)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                }
+            }
+        }
+        throw new Exception("Choose a video or cover from this folder.");
+    }
     synchronized void choose(Uri uri) throws Exception {
         snapshot();
         if (!"content".equals(uri.getScheme()) || !DocumentsContract.isTreeUri(uri)) throw new Exception("Select a folder.");
@@ -53,7 +121,7 @@ final class BiliDownloads {
         try (Cursor cursor=context.getContentResolver().query(root,new String[]{DocumentsContract.Document.COLUMN_FLAGS},null,null,null)) {
             if (cursor==null || !cursor.moveToFirst() || (cursor.getInt(0)&DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE)==0) throw new Exception("This folder cannot create files.");
         }
-        if (!preferences.edit().putString("downloadFolder",uri.toString()).commit()) throw new Exception("Could not save the folder."); folder=uri.toString();
+        remember(uri); folder=uri.toString(); save();
     }
     synchronized JSONObject start(String bvid,String cid,String kind) throws Exception {
         snapshot();

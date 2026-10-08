@@ -8,6 +8,10 @@ function subscribe<T>(channel: string, callback: (value: T) => void): () => void
 }
 
 const bridge: BilibiliBridge = {
+  getSaveFolders: () => ipcRenderer.invoke('folders:get'),
+  controlSaveFolder: (options) => ipcRenderer.invoke('folders:control', options),
+  listSavedFiles: (options) => ipcRenderer.invoke('folders:files', options),
+  openSavedFile: (options) => ipcRenderer.invoke('folders:open-file', options),
   getDownloads: () => ipcRenderer.invoke('downloads:get'),
   chooseDownloadFolder: () => ipcRenderer.invoke('downloads:choose'),
   startDownload: (options) => ipcRenderer.invoke('downloads:start', options),

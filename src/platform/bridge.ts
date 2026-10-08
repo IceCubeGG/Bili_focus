@@ -21,6 +21,10 @@ function androidBridge(): BilibiliBridge {
     return () => { cancelled = true; void handle.then(value => value.remove()).catch(() => {}); };
   };
   return {
+    getSaveFolders: () => native.getSaveFolders(),
+    controlSaveFolder: (options) => native.controlSaveFolder(options),
+    listSavedFiles: (options) => native.listSavedFiles(options),
+    openSavedFile: (options) => native.openSavedFile(options),
     getDownloads: () => native.getDownloads(),
     chooseDownloadFolder: () => native.chooseDownloadFolder(),
     startDownload: (options) => native.startDownload(options),
@@ -67,6 +71,10 @@ function previewBridge(): BilibiliBridge {
   const login: LoginSnapshot = { status: 'idle', qrDataUrl: null, expiresAt: null, message: null };
   const unsupported = async (): Promise<LoginSnapshot> => ({ ...login, status: 'error', message: 'Account sign-in is available in the native app.' });
   return {
+    getSaveFolders: async () => ({ folders: [], activeFolderId: null }),
+    controlSaveFolder: async () => { throw new Error('Folder management requires the desktop or Android app.'); },
+    listSavedFiles: async () => { throw new Error('Folder management requires the desktop or Android app.'); },
+    openSavedFile: async () => { throw new Error('Folder management requires the desktop or Android app.'); },
     getDownloads: async () => ({ folder: null, jobs: [] }),
     chooseDownloadFolder: async () => { throw new Error('Folder selection requires the desktop or Android app.'); },
     startDownload: async () => { throw new Error('Downloads require the desktop or Android app.'); },

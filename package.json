@@ -1,6 +1,6 @@
 {
   "name": "bili-focus",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "A desktop and Android Bilibili companion with a user-controlled recommendation feed.",
@@ -65,6 +65,7 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "!node_modules/**/*",
       "package.json"
     ],
     "win": {

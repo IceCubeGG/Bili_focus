@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdtemp, readFile, readdir, writeFile, mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, writeFile, mkdir, rm, rename, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { DownloadManager } from '../src/electron/download-manager';
@@ -18,6 +18,50 @@ async function setup() {
 async function finished(manager:DownloadManager) { await vi.waitFor(()=>expect(manager.get().jobs.some(job=>['queued','running'].includes(job.state))).toBe(false),{timeout:3000,interval:10}); await new Promise(resolve=>setTimeout(resolve,30)); return manager.get().jobs[0]; }
 afterEach(async()=>{ for(const path of directories.splice(0)) await rm(path,{recursive:true,force:true}); });
 describe('native download queue',()=>{
+  it('migrates the original save location and persists stable folder identifiers', async () => {
+    const { manager, path, folder, videos } = await setup();
+    await writeFile(path, JSON.stringify({ version: 1, folder, jobs: [] })); await manager.load();
+    const before = manager.getSaveFolders(); expect(before.folders).toHaveLength(1); expect(before.activeFolderId).toBe(before.folders[0].id);
+    const restored = new DownloadManager(path, videos as unknown as VideoClient, () => 1); await restored.load(); expect(restored.getSaveFolders()).toEqual(before);
+  });
+  it('remembers multiple folders, deduplicates selections and forgets without deleting files', async () => {
+    const { manager, folder } = await setup(), second = folder + '-second'; await mkdir(second);
+    await writeFile(join(folder, 'keep.mp4'), mp4); await manager.chooseFolder(folder); const first = manager.getSaveFolders().activeFolderId!;
+    await manager.chooseFolder(second); await manager.chooseFolder(second); expect(manager.getSaveFolders().folders).toHaveLength(2);
+    await manager.controlSaveFolder({ id: first, action: 'select' }); expect(manager.get().folder).toBe(folder);
+    await manager.controlSaveFolder({ id: first, action: 'forget' }); expect(manager.get().folder).toBeNull(); expect(manager.getSaveFolders().folders).toHaveLength(1);
+    expect(await readFile(join(folder, 'keep.mp4'))).toEqual(Buffer.from(mp4)); await expect(manager.start({ bvid: BV, cid: '123', kind: 'video' })).rejects.toThrow('folder');
+    await expect(manager.controlSaveFolder({ id: first, action: 'select' })).rejects.toThrow('not found');
+  });
+  it('lists only direct supported media and rejects arbitrary paths, scripts and directories', async () => {
+    const { manager, folder } = await setup(); await manager.chooseFolder(folder); const folderId = manager.getSaveFolders().activeFolderId!;
+    await mkdir(join(folder, 'nested.mp4')); await writeFile(join(folder, 'nested.mp4', 'inside.mp4'), mp4);
+    for (const name of ['clip.MP4', 'cover.JPEG', '.hidden.mp4', 'unfinished.part', 'script.mp4.exe', 'index.html']) await writeFile(join(folder, name), mp4);
+    const listing = await manager.listSavedFiles({ folderId }); expect(listing.files.map(file => file.name).sort()).toEqual(['clip.MP4', 'cover.JPEG']); expect(listing.truncated).toBe(false); expect(listing.files.every(file => file.bytes === mp4.length)).toBe(true);
+    expect(await manager.savedFilePath({ folderId, fileId: 'clip.MP4' })).toBe(join(folder, 'clip.MP4'));
+    for (const fileId of ['../outside.mp4', '..\\outside.mp4', join(folder, 'clip.MP4'), 'nested.mp4', 'script.mp4.exe', 'nested.mp4/inside.mp4', 'clip.MP4:stream.mp4']) await expect(manager.savedFilePath({ folderId, fileId })).rejects.toThrow();
+    await expect(manager.listSavedFiles({ folderId: folder })).rejects.toThrow('not found');
+  });
+  it('does not follow a directory replaced by a junction and allows forgetting an inaccessible shortcut', async () => {
+    const { manager, folder } = await setup(); await manager.chooseFolder(folder); const folderId = manager.getSaveFolders().activeFolderId!;
+    const other = folder + '-other'; await mkdir(other); await writeFile(join(other, 'outside.mp4'), mp4);
+    await rename(folder, folder + '-moved'); await symlink(other, folder, 'junction');
+    await expect(manager.listSavedFiles({ folderId })).rejects.toThrow('access changed'); await expect(manager.savedFilePath({ folderId, fileId: 'outside.mp4' })).rejects.toThrow('access changed');
+    await manager.controlSaveFolder({ id: folderId, action: 'forget' }); expect(await readFile(join(other, 'outside.mp4'))).toEqual(Buffer.from(mp4));
+  });
+  it('keeps queued destinations pinned when the active folder changes or is forgotten', async () => {
+    const { manager, videos, folder } = await setup(), second = folder + '-second'; await mkdir(second); await manager.chooseFolder(folder);
+    let release!: () => void; const gate = new Promise<void>(resolve => { release = resolve; }); videos.stream.mockImplementationOnce(async () => { await gate; return response(); });
+    await manager.start({ bvid: BV, cid: '123', kind: 'video' }); await manager.start({ bvid: BV, cid: null, kind: 'cover' });
+    await manager.chooseFolder(second); await manager.controlSaveFolder({ id: manager.getSaveFolders().activeFolderId!, action: 'forget' }); release(); await finished(manager);
+    expect(manager.get().jobs.every(job => job.state === 'completed' && job.files.every(file => file.startsWith(folder + '\\')))).toBe(true);
+    expect(await readdir(second)).toEqual([]); expect(manager.get().folder).toBeNull();
+  });
+  it('explicitly flags large folders rather than silently omitting files', async () => {
+    const { manager, folder } = await setup(); await manager.chooseFolder(folder);
+    await Promise.all(Array.from({ length: 1001 }, (_, index) => writeFile(join(folder, `${index}.mp4`), mp4)));
+    const listing = await manager.listSavedFiles({ folderId: manager.getSaveFolders().activeFolderId! }); expect(listing.files).toHaveLength(1000); expect(listing.truncated).toBe(true);
+  });
   it('preserves corrupt queue data without stopping other app features',async()=>{const {manager,path,folder,change}=await setup();await writeFile(path,'CORRUPT ORIGINAL');await expect(manager.load()).rejects.toThrow('preserved');change();await expect(manager.chooseFolder(folder)).rejects.toThrow('preserved');expect(await readFile(path,'utf8')).toBe('CORRUPT ORIGINAL');});
   it('saves separate numbered segments rather than concatenating incompatible containers',async()=>{const {manager,videos,folder}=await setup();await manager.chooseFolder(folder);videos.getVideoPlayback.mockResolvedValueOnce({handle:'opaque',sources:[{url:'bili-media://stream/11111111-1111-4111-8111-111111111111/0'},{url:'bili-media://stream/11111111-1111-4111-8111-111111111111/1'}]});await manager.start({bvid:BV,cid:'123',kind:'video'});const job=await finished(manager);expect(job.state).toBe('completed');expect(job.files).toHaveLength(2);expect(job.files[0]).toContain('-segment1-');expect(job.files[1]).toContain('-segment2-');});
   it('requires an explicitly chosen native folder',async()=>{const {manager}=await setup();await expect(manager.start({bvid:BV,cid:'123',kind:'video'})).rejects.toThrow('folder');await expect(manager.chooseFolder('relative')).rejects.toThrow();});

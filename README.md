@@ -1,37 +1,16 @@
-# Bili Focus — saved playback-compatible copy (2026-10-06)
+# Bili Focus 0.2.0 — playback-compatible, with save-folder manager
 
-This separate copy restores the pre-quality-selector player. Watching explicitly uses the progressive MP4 request (`qn=64`, `fnval=1`, `fourk=0`, `platform=html5`) and a direct HTML video source, not Shaka/DASH attachment. There is no quality menu. Bilibili still chooses the available rendition and enforces access restrictions.
+This third-party Bilibili app is designed for a more focused viewing experience. It lets you group creators and filter out videos based on tags you select.
 
-English and 简体中文 switching, saved language preferences, sign-in, strict Browse presets, complete uploader/group libraries, Danmu, comments, fullscreen, video/cover downloads, and the previous Android stream/range repair remain. Reload restarts the selected part, as in the earlier direct player. The original quality-selection project and APK in the parent workspace are unchanged.
+## Save-folder manager
 
-Use the `Launch Bili Focus.cmd` in this folder, or `Launch Bili Focus - Compatibility.cmd` in the parent workspace. Close the running desktop app first. The launcher reuses the parent's installed Electron runtime when this copy has no local dependencies. It opens this copy's own production build and uses the same account/settings storage; do not run both variants simultaneously.
+Open **Options → Save folder & downloads**. Add folders through the system picker, browse any remembered folder, and use **Use for new downloads** to change the destination. The original download location is migrated automatically. Up to 30 folder shortcuts are remembered locally; they are not synced to GitHub or between devices.
 
-Android handoff: `../../release/android/Bili-Focus-0.1.0-playback-compatible-debug.apk`. It uses the same app ID, version code, and development signing certificate as the existing debug app, so install it as an update without uninstalling to retain app data. Actual phone playback remains unverified; no device was accessed during this rollback.
+Search filenames, filter videos/covers, refresh after downloading, and open a file in your installed player or image viewer. The manager lists MP4/WebM videos and JPG/JPEG/PNG/WebP/GIF images directly in the selected folder, not nested folders. **Forget folder** removes only the shortcut and never deletes files. Forgetting the active folder requires selecting a new destination before starting another download. Already queued downloads keep their original destination; an explicit retry uses the currently selected folder.
 
-On another machine, run `npm ci` followed by `npm run build`. For Android, keep the existing SDK on C:, then run `npm run android:build`. In this workspace the build can reuse the parent cache with `$env:GRADLE_USER_HOME = 'D:\Maker\Bilibili3rdparty\.gradle-cache'`. Always run `npm run android:sync` before directly building with Gradle after moving the source copy, so Capacitor regenerates its dependency paths.
+Missing folders and revoked Android grants can be reselected through the picker or forgotten. Android uses persisted SAF permissions and grants a viewer read access only to the chosen file; no broad storage permission is requested. Windows blocks path traversal, alternate data streams, and symbolic-link/junction escapes when opening files. Very large directories are explicitly marked as truncated after 1,000 supported media files or 10,000 directory entries. Downloaded files are not uploaded to GitHub.
 
-A Bilibili companion with Windows desktop and Android clients. Roadmap steps 1–8 are implemented: account management, strict recommendation presets, followed-account libraries/groups, video playback with Danmu/comments, and video/cover downloads with folder selection and a queue.
-
-## Start the app
-
-The dependencies and production build are already prepared in this workspace. Double-click **Launch Bili Focus.cmd** to open the desktop client.
-
-Requires Node.js 22.12+ (Node.js 24 is used during development).
-
-```powershell
-npm install
-npm run setup:desktop
-npm run dev
-```
-
-For a production build:
-
-```powershell
-npm run build
-npm start
-```
-
-`npm run dev:web` opens an interface preview at http://127.0.0.1:5173. Account sign-in and live recommendations require a native desktop or Android host. Browser preview saves interface preferences and recommendation presets in local storage, separate from native settings. The Electron runtime is installed explicitly by `setup:desktop`, so Android-only setup does not download it automatically.
+Android and Windows downloads are available in the **v0.2.0-save-folders** GitHub release. Android uses version code 2 and the existing development signing certificate; Windows is unsigned. Install Android as an update without uninstalling to retain app data. See [save-folder details and build notes](docs/save-folders.md).
 
 ## What works now
 
@@ -75,15 +54,6 @@ npm run android:build
 
 Android requires SDK 36 and Java 21; Android Studio is optional for command-line builds. The minimum supported device is Android 9 (API 28). QR sign-in requires another device running the Bilibili app to scan the code. The build command recognizes this machine's existing C: SDK/JDK paths without changing global environment variables. See [Android build and migration instructions](docs/android-migration.md). Real-device playback, folder export and sign-in still need verification.
 
-## Next roadmap steps
-
-Step 9 verifies complete user journeys and persistence, followed by reliability/release packaging. Subscribe currently covers original video uploads, not text/image dynamics or repost display.
-
-Watching and downloads use the earlier progressive MP4 path. The watching UI has no quality selector or DASH attachment. Speed and Danmu visibility persist across part changes. HDR/Dolby, advanced audio-track choice, interactive branching and protected PGC are not implemented. Entitlements and previews are not bypassed. The browser-only preview cannot play native streams.
-
-Choose **Options → Interface language** for **English** or **简体中文**. The choice applies immediately and survives restart on desktop, Android and browser preview. Navigation, account/login panels, presets, subscription groups, player/comments controls and download controls are translated. Dates/numbers use the selected locale. Creator names, titles, tags, descriptions, messages and user-created preset/group names are not translated. Official Bilibili pages, OS dialogs/native video controls and unrecognized technical diagnostics retain their own language. The extra fullscreen exit overlay is removed; use Escape on desktop or system Back on Android.
-
-See [the implementation scope](docs/implementation-plan.md) for the agreed flow and next steps.
 
 ## Checks and packaging
 
@@ -99,17 +69,17 @@ npm run package
 
 The packaging command generates an unpacked Windows application in `release/win-unpacked/`. An installer and code signing are not part of this milestone.
 
-`npm run test:desktop` uses an isolated temporary profile and needs network access. `npm run test:feed` verifies live guest pagination/tags and strict presets. `npm run test:feed:fail-closed` uses corrupt-rule fixtures. The compatibility production build and all 423 TypeScript tests pass, including three compatibility guards, translation coverage/settings migration, stream boundaries, and download validation. Native DASH transport helpers and their boundary tests remain as unused implementation support; they are not used by this copy's watching UI.
+`npm run test:desktop` uses an isolated temporary profile and needs network access. `npm run test:feed` verifies live guest pagination/tags and strict presets. `npm run test:feed:fail-closed` uses corrupt-rule fixtures. All 429 TypeScript tests pass, including folder migration/persistence, switching/forgetting, pinned queued destinations, media-only listings, directory limits and path boundaries, compatibility guards, translation coverage/settings migration, stream boundaries, and download validation. Native DASH transport helpers remain unused by this copy's watching UI.
 
 `npm run test:subscribe` passes using an OS-encrypted synthetic account in a temporary profile with every native network request intercepted by local fixtures. It checks the real production bridge and renderer, followed-only original uploads, ordering/deduplication, Refresh/older-page retry, Browse-preset independence, visible verification failure, the real roster boundary, exact uploader filtering, toggle preservation, group creation/edit/restoration/deletion, all 417 uploads from a two-member group, group retry and removal of a member during a delayed page request, the open phone-width list/editor, and delayed-response rejection after sign-out. Optional `-- --screenshots` captures are clearly marked SIMULATED and stored in `.gradle-cache`; they require a working desktop compositor and were not generated in this run. This does not authenticate a real account or prove the current upstream followed-feed/roster schema works for a real session.
 
-`npm run test:video` passes against this copy's production page/bridge with an isolated encrypted synthetic session and local fixtures. It creates WebM and muxed AVC/AAC MP4 clips and verifies direct playback, legacy-only playurl parameters, no quality menu, MP4 reload/part selection, Chinese/English screens and language persistence after reload, fullscreen without the exit overlay, byte-verified downloads, Danmu/comments/replies, account/part handle revocation, delayed cancellation, source restoration, and a 392-pixel layout. Only two explicit fixture messages are posted; no real account is used.
+`npm run test:video` passes against this copy's production page/bridge with an isolated encrypted synthetic session and local fixtures. It verifies the save-folder manager's search/type filters, file-open dispatch, traversal rejection, multiple folders, browsing vs. destination selection, safe forgetting/re-adding, and reload persistence in English/Chinese at 392-pixel width. It also creates WebM and muxed AVC/AAC MP4 clips and checks direct playback, legacy-only requests, no quality menu, parts/reload, fullscreen, byte-verified downloads, Danmu/comments/replies, account/part handle revocation, delayed cancellation and source restoration. Only two explicit fixture messages are posted; no real account is used.
 
 The guest-only `node scripts/probe-video.mjs` check succeeded on October 5, 2026 for `BV1xx411c7mD`: normalized metadata, a 720p progressive MP4 rendition, an HTTP 206 media range, 691 ordinary Danmu items in the first segment, and the available first comment page. It does not load saved credentials or post anything. These observations cover one public video, not every archive or account entitlement. Real-account Danmu/comment posting remains unverified.
 
 This copy's optional `node scripts/probe-video.mjs` uses the legacy progressive route as a guest, without loading credentials or sending messages. On 2026-10-06 it returned progressive 720p for `BV1xx411c7mD`, HTTP 206 MP4 bytes, 691 Danmu items, and a comment page. This verifies one public upload's native access, not every video or phone decoding. Availability still depends on Bilibili and the selected upload.
 
-The compatibility Android debug APK builds successfully and its v2 development signature verifies against the same certificate as the original APK. Its web assets match this copy's desktop build and include no DASH player bundle. All 42 native unit tests pass. The Android stream fix still reports the full resource length and acknowledges offsets already applied by the CDN. Intercepted playback requires known resource lengths below 2 GiB. No device/emulator was accessed, and instrumentation was not run for this copy. Actual phone playback, fullscreen/Back, folder exports, and Android 9 compatibility need device verification.
+The 0.2.0 Android debug APK builds successfully. All 43 native unit tests pass, including supported library file types. The instrumentation test package compiles, including folder-registry migration/forgetting and corrupt-data preservation tests, but was not executed. The Android stream fix still reports the full resource length and acknowledges offsets already applied by the CDN. Intercepted playback requires known resource lengths below 2 GiB. No device/emulator was accessed. Actual phone playback, fullscreen/Back, folder picking/listing/exports and external file opening need device verification.
 
 ## Integration references
 
@@ -128,5 +98,3 @@ Bilibili account support uses its web passport interfaces, documented by the sou
 - [Danmu operations](https://github.com/pskdje/bilibili-API-collect/blob/main/docs/danmaku/action.md)
 - [Comment operations](https://github.com/pskdje/bilibili-API-collect/blob/main/docs/comment/action.md)
 - [Android WebView process isolation](https://developer.android.com/reference/android/webkit/WebView#setDataDirectorySuffix(java.lang.String))
-
-Account tests use mock responses and never authenticate or revoke a real user's session. A real authenticated sign-in, captcha/SMS completion, and renewal need user verification. Bilibili can change its login page or reject embedded clients; no bypass of its verification or access controls is implemented.

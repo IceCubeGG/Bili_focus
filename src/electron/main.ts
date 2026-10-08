@@ -77,6 +77,10 @@ async function start(): Promise<void> {
   };
 
   const handlers: Record<string, (...args: unknown[]) => unknown> = {
+    'folders:get': () => downloads!.getSaveFolders(),
+    'folders:control': (options) => downloads!.controlSaveFolder(options),
+    'folders:files': (options) => downloads!.listSavedFiles(options),
+    'folders:open-file': async (options) => { const error = await shell.openPath(await downloads!.savedFilePath(options)); if (error) throw new Error('No app could open this file. Install a compatible video or image viewer.'); },
     'downloads:get': () => downloads!.get(),
     'downloads:choose': async () => { const picked = await dialog.showOpenDialog(window!, { title: translator(settings.get().language)('Choose a download folder'), properties: ['openDirectory', 'createDirectory'] }); return picked.canceled ? downloads!.get() : downloads!.chooseFolder(picked.filePaths[0]); },
     'downloads:start': (options) => downloads!.start(options),

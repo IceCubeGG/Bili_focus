@@ -327,6 +327,21 @@ public final class BiliAccountPlugin extends Plugin {
     }
     private static String videoBvid(PluginCall call) { return BiliVideoClient.bvid(call.getData().opt("bvid")); }
     @PluginMethod public void getDownloads(PluginCall call) { try { call.resolve(JSObject.fromJSONObject(downloads.snapshot())); } catch (Exception ignored) { call.reject("Could not load downloads."); } }
+    @PluginMethod public void getSaveFolders(PluginCall call) { try { call.resolve(JSObject.fromJSONObject(downloads.folderSnapshot())); } catch(Exception error) { call.reject(error.getMessage()); } }
+    @PluginMethod public void controlSaveFolder(PluginCall call) {
+        videoWork.execute(()->{ try { call.resolve(JSObject.fromJSONObject(downloads.controlFolder(call.getString("id",""),call.getString("action","")))); } catch(Exception error) { call.reject(error.getMessage()==null?"Folder access changed. Select it again with the system picker.":error.getMessage()); } });
+    }
+    @PluginMethod public void listSavedFiles(PluginCall call) {
+        videoWork.execute(()->{ try { call.resolve(JSObject.fromJSONObject(downloads.savedFiles(call.getString("folderId","")))); } catch(Exception error) { call.reject("Folder access changed. Select it again with the system picker."); } });
+    }
+    @PluginMethod public void openSavedFile(PluginCall call) {
+        videoWork.execute(()->{
+            try {
+                Intent intent=downloads.savedFileIntent(call.getString("folderId",""),call.getString("fileId",""));
+                getActivity().runOnUiThread(()->{ try { getActivity().startActivity(Intent.createChooser(intent,null)); call.resolve(); } catch(Exception error) { call.reject("No app could open this file. Install a compatible video or image viewer."); } });
+            } catch(Exception error) { call.reject("Choose a video or cover from this folder."); }
+        });
+    }
     @PluginMethod public void startDownload(PluginCall call) {
         try { String kind=call.getString("kind", ""); call.resolve(JSObject.fromJSONObject(downloads.start(videoBvid(call), kind.equals("video") ? videoCid(call) : null, kind))); }
         catch(Exception error) { call.reject(error.getMessage()==null ? "Could not add this download." : error.getMessage()); }

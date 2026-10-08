@@ -114,6 +114,10 @@ export interface DownloadJob {
   files: string[]; error: string | null; createdAt: number;
 }
 export interface DownloadsSnapshot { folder: string | null; jobs: DownloadJob[]; }
+export interface SaveFolder { id: string; label: string; location: string; }
+export interface SaveFoldersSnapshot { folders: SaveFolder[]; activeFolderId: string | null; }
+export interface SavedFile { id: string; name: string; kind: 'video' | 'cover'; bytes: number; modifiedAt: number; }
+export interface SavedFilesSnapshot { folderId: string; files: SavedFile[]; truncated: boolean; }
 
 export interface BrowsePreset {
   id: string;
@@ -132,6 +136,10 @@ export interface BrowseSettings {
 export const DEFAULT_BROWSE_SETTINGS: BrowseSettings = { version: 1, activePresetId: null, presets: [] };
 
 export interface BilibiliBridge {
+  getSaveFolders(): Promise<SaveFoldersSnapshot>;
+  controlSaveFolder(options: { id: string; action: 'select' | 'forget' }): Promise<SaveFoldersSnapshot>;
+  listSavedFiles(options: { folderId: string }): Promise<SavedFilesSnapshot>;
+  openSavedFile(options: { folderId: string; fileId: string }): Promise<void>;
   getDownloads(): Promise<DownloadsSnapshot>;
   chooseDownloadFolder(): Promise<DownloadsSnapshot>;
   startDownload(options: { bvid: string; cid: string | null; kind: 'video' | 'cover' }): Promise<DownloadsSnapshot>;

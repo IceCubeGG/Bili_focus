@@ -1,6 +1,15 @@
 package app.bilifocus.desktop;
 import java.nio.charset.StandardCharsets;
 final class DownloadFiles {
+    static String mediaKind(String name) {
+        if (name == null || name.startsWith(".")) return null;
+        if (name.matches("(?i).+\\.(mp4|webm)")) return "video";
+        return name.matches("(?i).+\\.(jpe?g|png|webp|gif)") ? "cover" : null;
+    }
+    static String mediaMime(String name) {
+        String extension = name.substring(name.lastIndexOf('.') + 1).toLowerCase(java.util.Locale.ROOT);
+        return mime(extension.equals("jpeg") ? "jpg" : extension);
+    }
     static String name(String value) {
         String result = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFKC).replaceAll("[<>:\"/\\\\|?*\\x00-\\x1f\\x7f]", "_");
         result = result.substring(0, result.offsetByCodePoints(0, Math.min(70, result.codePointCount(0, result.length())))).replaceAll("[. ]+$", "").trim();

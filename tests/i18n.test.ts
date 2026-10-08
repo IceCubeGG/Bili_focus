@@ -10,11 +10,11 @@ describe('interface languages', () => {
   it('has no untranslated static JSX text apart from language names, branding and UID', () => {
     const missed: string[] = [];
     function visit(node: any, file: string) { if (!node || !node.type) return; if (node.type === 'JSXText') { const value = node.value.trim(); if (/[a-zA-Z]{2}/.test(value) && !['Bili', 'Focus', 'Bili Focus', 'English', 'UID'].includes(value)) missed.push(`${file}: ${value}`); } for (const value of Object.values(node)) { if (Array.isArray(value)) value.forEach(item => visit(item, file)); else if (value && typeof value === 'object' && 'type' in value) visit(value, file); } }
-    for (const name of ['App', 'BrowsePage', 'SubscribePage', 'SubscriptionDirectory', 'VideoPage', 'DownloadsPanel']) visit(parse(readFileSync(`src/renderer/${name}.tsx`, 'utf8'), { sourceType: 'module', plugins: ['typescript', 'jsx'] }), name);
+    for (const name of ['App', 'BrowsePage', 'SubscribePage', 'SubscriptionDirectory', 'VideoPage', 'DownloadsPanel', 'SaveFolderManager']) visit(parse(readFileSync(`src/renderer/${name}.tsx`, 'utf8'), { sourceType: 'module', plugins: ['typescript', 'jsx'] }), name);
     expect(missed).toEqual([]);
   });
   it('does not translate semantic state comparisons', () => {
-    for (const name of ['App', 'BrowsePage', 'SubscribePage', 'SubscriptionDirectory', 'VideoPage', 'DownloadsPanel']) {
+    for (const name of ['App', 'BrowsePage', 'SubscribePage', 'SubscriptionDirectory', 'VideoPage', 'DownloadsPanel', 'SaveFolderManager']) {
       const source = readFileSync(`src/renderer/${name}.tsx`, 'utf8'); expect(source).not.toMatch(/(?:===|!==)\s*t\(/);
     }
   });

@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, realpath, stat, open, link, unlink, copyFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, stat, lstat, opendir, open, link, unlink, copyFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { join, isAbsolute } from 'node:path';
-import type { DownloadJob, DownloadsSnapshot } from '../shared/contracts';
+import { join, isAbsolute, basename } from 'node:path';
+import type { DownloadJob, DownloadsSnapshot, SaveFolder, SaveFoldersSnapshot, SavedFilesSnapshot, SavedFile } from '../shared/contracts';
 import { COVER_LIMIT, VIDEO_LIMIT, downloadName, downloadRequest, downloadType } from '../core/downloads';
 import { atomicWrite } from './settings-store';
 import type { VideoClient } from './video-client';
@@ -11,6 +11,8 @@ import type { VideoClient } from './video-client';
 export class DownloadManager {
   private folder: string | null = null;
   private jobs: DownloadJob[] = [];
+  private folders: SaveFolder[] = [];
+  private destinations = new Map<string, string>();
   private busy = false;
   private active: AbortController | null = null;
   private closed = false;
@@ -23,20 +25,69 @@ export class DownloadManager {
       const saved = JSON.parse(await readFile(this.path, 'utf8'));
       if (saved.version !== 1 || !Array.isArray(saved.jobs) || saved.jobs.length > 50 || !(saved.folder === null || typeof saved.folder === 'string' && isAbsolute(saved.folder))) throw new Error();
       this.folder = saved.folder;
+      if (saved.folders !== undefined && (!Array.isArray(saved.folders) || saved.folders.length > 30 || saved.folders.some((entry: SaveFolder) => !entry || !/^[a-f0-9-]{36}$/.test(entry.id) || typeof entry.location !== 'string' || !isAbsolute(entry.location) || typeof entry.label !== 'string' || entry.label.length > 400))) throw new Error();
+      this.folders = saved.folders ?? [];
+      if (this.folder && !this.folders.some(entry => entry.location === this.folder)) this.folders.push({ id: randomUUID(), label: basename(this.folder) || this.folder, location: this.folder });
       this.jobs = saved.jobs.map((value: DownloadJob) => {
         const request = downloadRequest(value);
         if (!/^[a-f0-9-]{36}$/.test(value.id) || typeof value.title !== 'string' || value.title.length > 400 || !['queued','running','completed','failed','cancelled'].includes(value.state) || !Array.isArray(value.files) || value.files.length > 50 || value.files.some(file => typeof file !== 'string' || !isAbsolute(file)) || !Number.isSafeInteger(value.createdAt)) throw new Error();
         return { ...request, id: value.id, title: value.title, createdAt: value.createdAt, files: value.files, downloadedBytes: 0, totalBytes: null, state: ['queued','running'].includes(value.state) ? 'failed' : value.state, error: ['queued','running'].includes(value.state) ? 'App closed before completion. Retry starts again with fresh access.' : value.state === 'failed' ? 'Download failed. Retry or remove it.' : null } as DownloadJob;
       });
+      if (saved.folders === undefined && this.folder) await this.save();
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') { this.loadError = 'Saved download history could not be restored. It has been preserved; downloads are paused until it is repaired.'; throw new Error(this.loadError); } }
   }
   get(): DownloadsSnapshot { if (this.loadError) throw new Error(this.loadError); return structuredClone({ folder: this.folder, jobs: this.jobs }); }
-  private save(): Promise<void> { const data = JSON.stringify({ version: 1, ...this.get() }); const saved = this.saveTail.then(() => atomicWrite(this.path, data)); this.saveTail = saved.catch(() => {}); return saved; }
+  private save(): Promise<void> { const data = JSON.stringify({ version: 1, ...this.get(), folders: this.folders }); const saved = this.saveTail.then(() => atomicWrite(this.path, data)); this.saveTail = saved.catch(() => {}); return saved; }
   async chooseFolder(path: string): Promise<DownloadsSnapshot> {
     this.get();
     if (!isAbsolute(path)) throw new Error('Select a folder through the system picker.');
     const resolved = await realpath(path); if (!(await stat(resolved)).isDirectory()) throw new Error('Select a folder.');
+    if (!this.folders.some(entry => entry.location === resolved)) {
+      if (this.folders.length >= 30) throw new Error('Forget an old folder first (maximum 30).');
+      this.folders.push({ id: randomUUID(), label: basename(resolved) || resolved, location: resolved });
+    }
     this.folder = resolved; await this.save(); return this.get();
+  }
+  getSaveFolders(): SaveFoldersSnapshot {
+    this.get(); return structuredClone({ folders: this.folders, activeFolderId: this.folders.find(entry => entry.location === this.folder)?.id ?? null });
+  }
+  private savedFolder(id: unknown): SaveFolder {
+    this.get(); const folder = this.folders.find(entry => entry.id === id); if (!folder) throw new Error('Saved folder not found.'); return folder;
+  }
+  async controlSaveFolder(value: unknown): Promise<SaveFoldersSnapshot> {
+    const input = value as { id?: unknown; action?: unknown } | null, folder = this.savedFolder(input?.id);
+    if (input?.action === 'select') await this.chooseFolder(folder.location);
+    else if (input?.action === 'forget') {
+      this.folders = this.folders.filter(entry => entry !== folder);
+      if (this.folder === folder.location) this.folder = null;
+      await this.save();
+    } else throw new Error('Invalid folder action.');
+    return this.getSaveFolders();
+  }
+  private async folderPath(id: unknown): Promise<string> {
+    const folder = this.savedFolder(id);
+    try { const resolved = await realpath(folder.location); if (resolved === folder.location && (await stat(resolved)).isDirectory()) return resolved; } catch { /* Missing or revoked folders remain removable. */ }
+    throw new Error('Folder access changed. Select it again with the system picker.');
+  }
+  async listSavedFiles(value: unknown): Promise<SavedFilesSnapshot> {
+    const id = (value as { folderId?: unknown } | null)?.folderId, folder = await this.folderPath(id), files: SavedFile[] = [];
+    let truncated = false, scanned = 0;
+    for await (const entry of await opendir(folder)) {
+      if (++scanned > 10000) { truncated = true; break; }
+      const kind = savedFileKind(entry.name); if (!entry.isFile() || !kind) continue;
+      if (files.length >= 1000) { truncated = true; break; }
+      try { const info = await lstat(join(folder, entry.name)); if (info.isFile() && !info.isSymbolicLink()) files.push({ id: entry.name, name: entry.name, kind, bytes: info.size, modifiedAt: Math.floor(info.mtimeMs) }); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+    }
+    files.sort((a, b) => b.modifiedAt - a.modifiedAt || a.name.localeCompare(b.name));
+    return { folderId: id as string, files, truncated };
+  }
+  async savedFilePath(value: unknown): Promise<string> {
+    const input = value as { folderId?: unknown; fileId?: unknown } | null, folder = await this.folderPath(input?.folderId), name = input?.fileId;
+    if (typeof name !== 'string' || !name || basename(name) !== name || /[\\/\x00-\x1f<>:"|?*]/.test(name) || !savedFileKind(name)) throw new Error('Choose a video or cover from this folder.');
+    const path = join(folder, name), info = await lstat(path);
+    if (!info.isFile() || info.isSymbolicLink() || await realpath(path) !== path) throw new Error('Choose a video or cover from this folder.');
+    return path;
   }
   syncAccount(): void {
     if (this.revision === this.accountRevision()) return;
@@ -51,20 +102,21 @@ export class DownloadManager {
     if (this.jobs.length >= 50) throw new Error('Remove old queue entries before adding more (maximum 50).');
     if (this.jobs.some(job => job.bvid === input.bvid && job.cid === input.cid && job.kind === input.kind && ['queued','running'].includes(job.state))) throw new Error('This item is already queued.');
     this.jobs.unshift({ ...input, id: randomUUID(), title: input.bvid, state: 'queued', downloadedBytes: 0, totalBytes: null, files: [], error: null, createdAt: Date.now() });
+    this.destinations.set(this.jobs[0].id, this.folder);
     await this.save(); this.pump(); return this.get();
   }
   async control(value: unknown): Promise<DownloadsSnapshot> {
     this.get();
     const input = value as { id: string; action: string }, job = this.jobs.find(job => job.id === input?.id); if (!job) throw new Error('Queue item not found.');
     if (input.action === 'cancel' && ['queued','running'].includes(job.state)) { if (job.state === 'running') this.active?.abort(); job.state = 'cancelled'; job.error = null; }
-    else if (input.action === 'retry' && ['failed','cancelled'].includes(job.state)) { if (this.busy && job.state === 'cancelled' && this.active?.signal.aborted) throw new Error('Wait for cancellation to finish.'); job.state = 'queued'; job.error = null; job.downloadedBytes = 0; job.totalBytes = null; }
-    else if (input.action === 'remove' && !['queued','running'].includes(job.state)) this.jobs = this.jobs.filter(value => value !== job);
+    else if (input.action === 'retry' && ['failed','cancelled'].includes(job.state)) { if (!this.folder) throw new Error('Choose a save folder in Options first.'); if (this.busy && job.state === 'cancelled' && this.active?.signal.aborted) throw new Error('Wait for cancellation to finish.'); this.destinations.set(job.id, this.folder); job.state = 'queued'; job.error = null; job.downloadedBytes = 0; job.totalBytes = null; }
+    else if (input.action === 'remove' && !['queued','running'].includes(job.state)) { this.jobs = this.jobs.filter(value => value !== job); this.destinations.delete(job.id); }
     else throw new Error('This queue action is unavailable.');
     await this.save(); this.pump(); return this.get();
   }
   private pump(): void {
     if (this.busy || this.closed) return; const job = [...this.jobs].reverse().find(job => job.state === 'queued'); if (!job) return;
-    this.busy = true; const controller = new AbortController(); this.active = controller; job.state = 'running'; const folder = this.folder!, revision = this.accountRevision();
+    this.busy = true; const controller = new AbortController(); this.active = controller; job.state = 'running'; const folder = this.destinations.get(job.id)!, revision = this.accountRevision();
     void this.run(job, folder, controller, revision).finally(async () => { this.active = null; this.busy = false; await this.save().catch(() => {}); this.pump(); });
   }
   private async run(job: DownloadJob, folder: string, controller: AbortController, revision: number): Promise<void> {
@@ -116,4 +168,9 @@ export class DownloadManager {
       job.state = job.state === 'cancelled' || revision !== this.accountRevision() ? 'cancelled' : 'failed'; job.error = error instanceof Error ? error.message : 'Download failed. Retry or choose another folder.'; job.files = [];
     } finally { if (handle) this.videos.releaseVideoPlayback({ handle }); for (const path of staged) await unlink(path).catch(() => {}); }
   }
+}
+
+function savedFileKind(name: string): 'video' | 'cover' | null {
+  if (name.startsWith('.')) return null;
+  return /\.(mp4|webm)$/i.test(name) ? 'video' : /\.(jpe?g|png|webp|gif)$/i.test(name) ? 'cover' : null;
 }

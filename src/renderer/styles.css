@@ -571,6 +571,18 @@ input:focus-visible, select:focus-visible { outline: 2px solid var(--pink); outl
 .preset-field { padding: 18px 0; border-top: 1px solid var(--line); }
 .preset-field h3 { font-size: 13px; display: flex; align-items: center; gap: 7px; margin-bottom: 12px; }
 .preset-field h3 > span { margin-left: auto; font-size: 11px; color: var(--muted); font-weight: 400; }
+.save-folder-manager { min-width: 0; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+.save-folder-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.save-folder-label { display: grid; gap: 8px; margin-top: 16px; font-size: 13px; }
+.save-folder-label select, .saved-file-filters input, .saved-file-filters select { min-width: 0; width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--surface); color: var(--ink); font: inherit; }
+.saved-file-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(100px, 160px); gap: 10px; margin-top: 18px; }
+.saved-file-list { display: grid; gap: 8px; margin-bottom: 12px; }
+.saved-file { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.saved-file > div { min-width: 0; display: grid; gap: 5px; }
+.saved-file strong { overflow-wrap: anywhere; font-size: 13px; }
+.saved-file span { color: var(--muted); font-size: 11px; }
+.saved-file > button { flex-shrink: 0; min-height: 44px; }
+@media (max-width: 480px) { .saved-file-filters { grid-template-columns: minmax(0, 1fr); } .saved-file { flex-wrap: wrap; } .save-folder-label select, .saved-file-filters input, .saved-file-filters select { font-size: 16px; } .save-folder-actions button { min-height: 44px; } }
 .entry-row { display: flex; gap: 8px; }
 .entry-row input { flex: 1; }
 .selected-rules { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }

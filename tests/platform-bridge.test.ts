@@ -8,6 +8,7 @@ function nativeContract(): BilibiliBridge {
   const account = { status: 'signed-out' as const, profile: null, lastCheckedAt: null, message: null, secureStorage: true };
   const login = { status: 'idle' as const, qrDataUrl: null, expiresAt: null, message: null };
   return {
+    getSaveFolders: vi.fn(async () => ({ folders: [], activeFolderId: null })), controlSaveFolder: vi.fn(), listSavedFiles: vi.fn(), openSavedFile: vi.fn(async () => {}),
     getDownloads: vi.fn(async () => ({ folder: null, jobs: [] })), chooseDownloadFolder: vi.fn(), startDownload: vi.fn(), controlDownload: vi.fn(),
     getVideoDetails: vi.fn(), getVideoPlayback: vi.fn(), releaseVideoPlayback: vi.fn(async () => {}),
     getDanmu: vi.fn(), sendDanmu: vi.fn(), getVideoComments: vi.fn(), sendVideoComment: vi.fn(), openCreatorProfile: vi.fn(async () => {}),
@@ -100,6 +101,10 @@ describe('cross-platform renderer bridge', () => {
     await platformBridge.signOut();
     const video = { bvid: 'BV1xx411c7mD' };
     await platformBridge.getDownloads(); await platformBridge.chooseDownloadFolder();
+    await platformBridge.getSaveFolders(); await platformBridge.controlSaveFolder({ id: 'folder', action: 'select' });
+    await platformBridge.listSavedFiles({ folderId: 'folder' }); await platformBridge.openSavedFile({ folderId: 'folder', fileId: 'clip.mp4' });
+    expect(native.getSaveFolders).toHaveBeenCalled(); expect(native.controlSaveFolder).toHaveBeenCalledWith({ id: 'folder', action: 'select' });
+    expect(native.listSavedFiles).toHaveBeenCalledWith({ folderId: 'folder' }); expect(native.openSavedFile).toHaveBeenCalledWith({ folderId: 'folder', fileId: 'clip.mp4' });
     await platformBridge.startDownload({ ...video, cid: '62131', kind: 'video' }); await platformBridge.controlDownload({ id: 'opaque', action: 'cancel' });
     expect(native.getDownloads).toHaveBeenCalled(); expect(native.chooseDownloadFolder).toHaveBeenCalled();
     expect(native.startDownload).toHaveBeenCalledWith({ ...video, cid: '62131', kind: 'video' }); expect(native.controlDownload).toHaveBeenCalledWith({ id: 'opaque', action: 'cancel' });
