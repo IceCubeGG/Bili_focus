@@ -1,4 +1,10 @@
 {
+  "ANDROID · V0.3": "安卓 · V0.3",
+  "DESKTOP · V0.3": "桌面 · V0.3",
+  "Compatible": "兼容模式",
+  "Switching playback…": "正在切换播放…",
+  "Selected quality could not play. Switched to Compatible playback.": "所选清晰度无法播放，已切换为兼容模式。",
+  "Qualities depend on this video, your account and this device. Compatible is the safe default.": "可用清晰度取决于视频、账号权限及设备。默认使用兼容模式。",
   "Level": "等级",
   "Bilibili — password or SMS sign-in": "哔哩哔哩 — 密码或短信登录",
   "Choose a download folder": "选择下载文件夹",

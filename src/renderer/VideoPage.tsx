@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Download, ExternalLink, ImageDown, LoaderCircle, Maximize, MessageSquare, RefreshCw, Send, UsersRound } from 'lucide-react';
 import { platformBridge } from '../platform/bridge';
 import { activeDanmu } from '../core/video';
-import type { AccountSnapshot, Danmu, VideoComment, VideoCommentsPage, VideoDetails, VideoPart, VideoPlayback } from '../shared/contracts';
+import { useVideoPlayback } from './use-video-playback';
+import type { AccountSnapshot, Danmu, VideoComment, VideoCommentsPage, VideoDetails, VideoPart } from '../shared/contracts';
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : 'Could not load this video feature. Please retry.';
 const date = (value: number | null, locale: string) => value ? new Date(value).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' }) : 'Publication time unavailable';
@@ -16,9 +17,7 @@ function ErrorPanel({ message, retry }: { message: string; retry?: () => void })
 function VideoPlayer({ details, part, account, danmuOn, setDanmuOn, speed, setSpeed }: { details: VideoDetails; part: VideoPart; account: AccountSnapshot; danmuOn: boolean; setDanmuOn: (value: boolean) => void; speed: number; setSpeed: (value: number) => void }) {
   const { t, locale } = useI18n();
   const video = useRef<HTMLVideoElement>(null), stage = useRef<HTMLDivElement>(null);
-  const [playback, setPlayback] = useState<VideoPlayback | null>(null);
-  const [playError, setPlayError] = useState<string | null>(null), [revision, setRevision] = useState(0);
-  const [streamIndex, setStreamIndex] = useState(0), [time, setTime] = useState(0);
+  const { playback, quality, qualities, loading, notice, playError, setPlayError, streamIndex, time, syncTime, currentTime, chooseQuality, reload, selectSegment } = useVideoPlayback(video, details.bvid, part.cid, speed);
   const [danmuText, setDanmuText] = useState('');
   const [segments, setSegments] = useState<Map<number, Danmu[]>>(new Map());
   const [danmuError, setDanmuError] = useState<string | null>(null), [danmuRetry, setDanmuRetry] = useState(0);
@@ -27,20 +26,6 @@ function VideoPlayer({ details, part, account, danmuOn, setDanmuOn, speed, setSp
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => { const pause = () => { if (document.hidden && !document.fullscreenElement) video.current?.pause(); }; document.addEventListener('visibilitychange', pause); return () => document.removeEventListener('visibilitychange', pause); }, []);
-  useEffect(() => {
-    let cancelled = false, handle: string | null = null;
-    setPlayback(null); setPlayError(null); setStreamIndex(0); setTime(0);
-    // Compatibility copy: the pre-quality-selector progressive MP4 route on both native hosts.
-    void platformBridge.getVideoPlayback({ bvid: details.bvid, cid: part.cid, format: 'progressive' }).then(value => {
-      handle = value.handle;
-      if (cancelled) { void platformBridge.releaseVideoPlayback({ handle }).catch(() => {}); return; }
-      setPlayback(value);
-    }).catch(error => { if (!cancelled) setPlayError(errorMessage(error)); });
-    return () => { cancelled = true; video.current?.pause(); if (handle) void platformBridge.releaseVideoPlayback({ handle }).catch(() => {}); };
-  }, [details.bvid, part.cid, revision]);
-  const streamOffset = useMemo(() => playback?.sources.slice(0, streamIndex).reduce((sum, value) => sum + value.durationSeconds, 0) ?? 0, [playback, streamIndex]);
-  const syncTime = useCallback(() => setTime(streamOffset + (video.current?.currentTime ?? 0)), [streamOffset]);
-  const reload = () => setRevision(value => value + 1);
   useEffect(() => {
     let frame = 0, previous = 0;
     const tick = (timestamp: number) => { if (video.current && !video.current.paused && timestamp - previous > 32) { previous = timestamp; syncTime(); } frame = requestAnimationFrame(tick); };
@@ -63,26 +48,28 @@ function VideoPlayer({ details, part, account, danmuOn, setDanmuOn, speed, setSp
   const send = async () => {
     if (sending || !canPost(account) || !danmuText.trim() || !playback) return;
     setSending(true); setSendError(null); setSendNotice(null);
-    try { const result = await platformBridge.sendDanmu({ bvid: details.bvid, cid: part.cid, text: danmuText, timeSeconds: streamOffset + (video.current?.currentTime ?? 0) }); if (alive.current) { setDanmuText(''); setSendNotice(result.message); } }
+    try { const result = await platformBridge.sendDanmu({ bvid: details.bvid, cid: part.cid, text: danmuText, timeSeconds: currentTime() }); if (alive.current) { setDanmuText(''); setSendNotice(result.message); } }
     catch (error) { if (alive.current) setSendError(errorMessage(error)); }
     finally { if (alive.current) setSending(false); }
   };
   return <section className="watch-player-panel" aria-label={t("Video player")}>
     <div className="watch-player-stage" ref={stage}>
-      {playback && <video ref={video} src={playback.sources[streamIndex]?.url} poster={details.cover || undefined} controls controlsList="nodownload nofullscreen" disablePictureInPicture playsInline preload="metadata"
-        onTimeUpdate={syncTime} onSeeked={syncTime} onLoadedMetadata={() => { if (video.current) { video.current.playbackRate = speed; if (streamIndex > 0) void video.current.play().catch(() => {}); } }}
-        onError={() => setPlayError(t("Playback stopped or the stream expired. Reload the player to try again."))}
-        onEnded={() => { if (streamIndex + 1 < playback.sources.length) setStreamIndex(value => value + 1); }} />}
+      <video ref={video} hidden={!playback} poster={details.cover || undefined} controls controlsList="nodownload nofullscreen" disablePictureInPicture playsInline preload="metadata"
+        onTimeUpdate={syncTime} onSeeked={syncTime} />
       {!playback && <div className="watch-player-placeholder"><LoaderCircle className={playError ? '' : 'spin'} size={30} /><span>{playError ? t("Playback unavailable") : t("Preparing your video…")}</span></div>}
       <div className="danmu-overlay" aria-hidden="true">{visible.map(item => <span key={item.id} className={`danmu-item mode-${item.mode}`} style={{ color: `#${item.color.toString(16).padStart(6, '0')}`,
         ...(item.mode === 1 ? { top: `${5 + item.lane * 7}%`, left: `${(1 - item.progress) * width}px`, transform: `translateX(-${item.progress * 100}%)` } : item.mode === 5 ? { top: `${5 + item.lane * 7}%` } : { bottom: `${18 + item.lane * 5}%` }) }}>{item.text}</span>)}</div>
     </div>
     <div className="watch-playback-tools">
+      <label>{t("Quality")}<select aria-label={t("Video quality")} value={quality} onChange={event => chooseQuality(Number(event.target.value))}><option value={0}>{t("Compatible")}</option>{qualities.map(value => <option key={value.id} value={value.id}>{value.label}</option>)}</select></label>
       <label>{t("Speed")}<select aria-label={t("Playback speed")} value={speed} onChange={event => { const next = Number(event.target.value); setSpeed(next); if (video.current) video.current.playbackRate = next; }}>{[0.5, 0.75, 1, 1.25, 1.5, 2].map(value => <option key={value} value={value}>{value}×</option>)}</select></label>
-      {playback && playback.sources.length > 1 && <label>{t("Stream segment")}<select aria-label={t("Stream segment")} value={streamIndex} onChange={event => { setStreamIndex(Number(event.target.value)); }}>{playback.sources.map((_value, index) => <option key={index} value={index}>{index + 1} / {playback.sources.length}</option>)}</select></label>}
+      {playback && playback.sources.length > 1 && <label>{t("Stream segment")}<select aria-label={t("Stream segment")} value={streamIndex} onChange={event => selectSegment(Number(event.target.value))}>{playback.sources.map((_value, index) => <option key={index} value={index}>{index + 1} / {playback.sources.length}</option>)}</select></label>}
       <button className="text-button" onClick={reload}><RefreshCw size={14} />{t("Reload player")}</button>
       <button className="text-button" onClick={() => { if (document.fullscreenElement) void document.exitFullscreen().catch(() => {}); else void stage.current?.requestFullscreen().catch(() => setPlayError(t("Fullscreen is unavailable on this device."))); }}><Maximize size={16} />{t("Fullscreen")}</button>
     </div>
+    {loading && playback && <p className="watch-notice" role="status">{t("Switching playback…")}</p>}
+    {notice && <p className="watch-notice" role="status">{t(notice, { 0: playback?.qualityLabel ?? '' })}</p>}
+    <p className="watch-muted">{t("Qualities depend on this video, your account and this device. Compatible is the safe default.")}</p>
     {playError && <ErrorPanel message={playError} retry={reload} />}
     <div className="danmu-bar"><label className="danmu-toggle"><input type="checkbox" checked={danmuOn} onChange={event => setDanmuOn(event.target.checked)} />{t("Danmu")} {danmuOn ? t("on") : t("off")}</label><form onSubmit={event => { event.preventDefault(); void send(); }}><input aria-label={t("Danmu message")} maxLength={100} value={danmuText} onChange={event => setDanmuText(event.target.value)} disabled={!canPost(account)} placeholder={canPost(account) ? t("Send Danmu at the current moment") : t("Sign in to send Danmu")} /><button className="button primary" disabled={!canPost(account) || sending || !danmuText.trim() || !playback}>{sending ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}{t("Send")}</button></form></div>
     {danmuError && <ErrorPanel message={`${t("Danmu")}: ${t(danmuError)}`} retry={() => setDanmuRetry(value => value + 1)} />}

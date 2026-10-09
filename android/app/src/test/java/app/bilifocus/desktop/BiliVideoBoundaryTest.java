@@ -3,6 +3,13 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class BiliVideoBoundaryTest {
+    @Test public void unknownQualityIsRejectedBeforeMetadataOrNetworkRequests() {
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        BiliVideoClient client = new BiliVideoClient((url, cookies, form) -> { calls.incrementAndGet(); return new byte[0]; });
+        assertThrows(IllegalArgumentException.class, () -> client.playback("BV1xx411c7mD", "62131", null, () -> {}, "https://localhost", 127, false));
+        assertThrows(IllegalArgumentException.class, () -> client.playback("BV1xx411c7mD", "62131", null, () -> {}, "https://localhost", 0, true));
+        assertEquals(0, calls.get());
+    }
     @Test public void qualitySelectionIsStrict() { assertEquals("4K", BiliVideoClient.qualityLabel(120)); assertEquals("1080p", BiliVideoClient.qualityLabel(80)); assertThrows(IllegalArgumentException.class, () -> BiliVideoClient.qualityLabel(127)); assertThrows(IllegalArgumentException.class, () -> BiliVideoClient.qualityLabel(0)); }
     @Test public void dashRangesAreOrderedAndBounded() { assertEquals("0-999", BiliVideoClient.byteRange("0-999")); assertThrows(IllegalArgumentException.class, () -> BiliVideoClient.byteRange("1-0")); assertThrows(IllegalArgumentException.class, () -> BiliVideoClient.byteRange("0-2147483648")); assertThrows(IllegalArgumentException.class, () -> BiliVideoClient.byteRange("0-10\r\nCookie:x")); }
     @Test public void bvidIsStrict() { assertEquals("BV1xx411c7mD", BiliVideoClient.bvid("BV1xx411c7mD")); assertThrows(IllegalArgumentException.class, () -> BiliVideoClient.bvid("BV1xx411c7mD?cookie=secret")); }

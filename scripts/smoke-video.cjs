@@ -65,7 +65,7 @@ async function input(window, selector, value) { await run(window, (selector, val
       case '/x/tag/archive/tags': return json([{ tag_name: 'SIMULATED Science' }]);
       case '/x/player/wbi/playurl': {
         assert.match(url.searchParams.get('w_rid'), /^[a-f0-9]{32}$/);
-        assert.equal(url.searchParams.get('fnval'), '1', 'Compatibility playback must never request DASH');
+        if (url.searchParams.get('fnval') !== '1') return json(null, -400); // Catalog failure must leave default playback intact.
         assert.equal(url.searchParams.get('fourk'), '0');
         assert.equal(url.searchParams.get('platform'), 'html5');
         assert.equal(url.searchParams.get('qn'), '64', 'The pre-selector default quality must be retained');
@@ -237,7 +237,7 @@ async function input(window, selector, value) { await run(window, (selector, val
         await until(window, () => document.querySelector('.watch-page video')?.readyState >= 2, 'Direct MP4 video/audio did not load');
         assert.equal(await run(window, () => document.querySelector('#comments-title').textContent.startsWith('评论')), true);
         assert.equal(await run(window, () => document.querySelector('.watch-description').textContent.includes('SIMULATED description')), true, 'Source content must not be translated');
-        assert.equal(await run(window, () => document.querySelector('select[aria-label="视频清晰度"]')), null, 'Compatibility copy must not expose a quality selector');
+        assert.equal(await run(window, () => document.querySelector('select[aria-label="视频清晰度"]').value), '0', 'Compatible remains the safe default in Chinese');
         assert.match(await run(window, () => document.querySelector('.watch-page video').src), /^bili-media:\/\/stream\//, 'The player must use a direct native source rather than a DASH blob');
         assert.equal(await run(window, () => document.documentElement.scrollWidth <= innerWidth), true, 'Chinese player must fit phone width');
         await input(window, 'select[aria-label="播放倍速"]', '1.5');
@@ -250,7 +250,7 @@ async function input(window, selector, value) { await run(window, (selector, val
         assert.equal(await run(window, () => document.querySelector('.watch-page video').playbackRate), 1.5, 'Speed must survive MP4 part selection');
         await run(window, () => document.querySelector('.watch-playback-tools button:first-of-type').click());
         await until(window, () => document.querySelector('.watch-page video')?.readyState >= 2, 'MP4 reload must work');
-        assert.equal(await run(window, () => document.querySelector('select[aria-label="视频清晰度"]')), null);
+        assert.equal(await run(window, () => document.querySelector('select[aria-label="视频清晰度"]').value), '0');
         await run(window, () => document.querySelectorAll('.bottom-nav button')[2].click());
         await input(window, '[data-testid="interface-language"]', 'en');
         await until(window, async () => (await window.bilibili.getSettings()).language === 'en', 'English language preference not saved');
@@ -259,7 +259,7 @@ async function input(window, selector, value) { await run(window, (selector, val
         await until(window, () => document.querySelectorAll('.subscription-card').length === 2, 'English feed did not restore');
         await run(window, () => document.querySelector('.subscription-card .video-open').click());
         await until(window, () => document.querySelector('.watch-page video')?.readyState >= 2, 'Final video opening failed');
-        assert.equal(await run(window, () => document.querySelector('select[aria-label="Video quality"]')), null, 'English must also omit quality selection');
+        assert.equal(await run(window, () => document.querySelector('select[aria-label="Video quality"]').value), '0', 'Compatible remains the safe default in English');
         const authenticatedSource = await run(window, () => document.querySelector('.watch-page video').src);
         await run(window, async () => { await window.bilibili.signOut(); });
         await until(window, () => document.querySelector('input[aria-label="Danmu message"]')?.disabled && document.querySelector('.watch-page video')?.readyState >= 2, 'Guest viewing must work and disable social sends after sign-out');
@@ -267,7 +267,7 @@ async function input(window, selector, value) { await run(window, (selector, val
         await assert.rejects(run(window, async () => window.bilibili.sendDanmu({ bvid: 'BV1xx411c7mD', cid: '62131', text: 'must not send', timeSeconds: 0 })), /Sign in/);
         assert.equal(posts.length, 2, 'Only the explicit fixture Danmu/reply submissions may post');
         assert.deepEqual(unexpected, []);
-        console.log(JSON.stringify({ simulatedFixturesOnly: true, productionBridgeAndUi: true, locallyGeneratedWebmAndAvcAacMp4DecodedAndPlayed: true, legacyProgressiveRouteOnly: true, noQualitySelectorOrDashAttachment: true, chineseAndEnglishUiAndSavedPreference: true, desktopFullscreenAndExitWithoutExtraButton: true, videoAndCoverDownloadedAndBytesVerified: true, nativeRangeProxy: true, detailsTagsPartsEpisodes: true, mp4ReloadAndPartSelection: true, danmuToggleAndSend: true, commentsOrderingPagingAndReplies: true, explicitPostsOnly: posts.length, nativeCsrfOnly: true, oldPartAndAccountHandlesRevoked: true, creatorProfileFixedUrl: true, returnRestoresSourceFeedAndGroup: true, delayedEpisodeDoesNotReopenPage: true, phoneWidth: 392, guestPlaybackAndSignedOutSendGate: true, unexpectedNetworkCalls: unexpected.length }, null, 2));
+        console.log(JSON.stringify({ simulatedFixturesOnly: true, productionBridgeAndUi: true, locallyGeneratedWebmAndAvcAacMp4DecodedAndPlayed: true, compatibleDefaultSurvivesCatalogFailure: true, chineseAndEnglishUiAndSavedPreference: true, desktopFullscreenAndExitWithoutExtraButton: true, videoAndCoverDownloadedAndBytesVerified: true, nativeRangeProxy: true, detailsTagsPartsEpisodes: true, mp4ReloadAndPartSelection: true, danmuToggleAndSend: true, commentsOrderingPagingAndReplies: true, explicitPostsOnly: posts.length, nativeCsrfOnly: true, oldPartAndAccountHandlesRevoked: true, creatorProfileFixedUrl: true, returnRestoresSourceFeedAndGroup: true, delayedEpisodeDoesNotReopenPage: true, phoneWidth: 392, guestPlaybackAndSignedOutSendGate: true, unexpectedNetworkCalls: unexpected.length }, null, 2));
         clearTimeout(watchdog); app.exit(0);
       } catch (error) { console.error(error.stack); clearTimeout(watchdog); app.exit(1); }
     });

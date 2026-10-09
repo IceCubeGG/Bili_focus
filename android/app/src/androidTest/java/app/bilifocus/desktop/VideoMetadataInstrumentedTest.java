@@ -18,13 +18,16 @@ public class VideoMetadataInstrumentedTest {
             .put("SegmentBase", new JSONObject().put("Initialization", "0-999").put("indexRange", "1000-2000"));
     }
     private static BiliVideoClient dashClient(boolean preview) {
+        return dashClient(preview, null);
+    }
+    private static BiliVideoClient dashClient(boolean preview, JSONObject dash) {
         return new BiliVideoClient((url, cookies, form) -> {
             String path = new URI(url).getPath();
             if (path.equals("/x/web-interface/view")) return json(details(), 0);
             if (path.equals("/x/web-interface/nav")) return json(keys(), cookies == null ? -101 : 0);
             if (path.equals("/x/player/wbi/playurl")) {
                 assertTrue(url.contains("fnval=144")); assertTrue(url.contains("fourk=1"));
-                return json(new JSONObject().put("is_preview", preview).put("dash", new JSONObject().put("duration", 400)
+                return json(new JSONObject().put("is_preview", preview).put("dash", dash != null ? dash : new JSONObject().put("duration", 400)
                     .put("video", new JSONArray().put(dashTrack(120, false)).put(dashTrack(80, false)))
                     .put("audio", new JSONArray().put(dashTrack(30280, true)))), 0);
             }
@@ -42,6 +45,54 @@ public class VideoMetadataInstrumentedTest {
     @Test public void nativeDashCannotBypassPreviewRestrictions() {
         BiliVideoClient client = dashClient(true);
         assertThrows(Exception.class, () -> client.playback(BV, "62131", null, () -> {}, "https://localhost", 120, false)); client.clear();
+    }
+    @Test public void nativeDashAcceptsSnakeCaseMetadataAndPreservesByteRanges() throws Exception {
+        JSONObject track = dashTrack(80, false);
+        track.put("base_url", track.remove("baseUrl")).put("mime_type", track.remove("mimeType"));
+        track.remove("SegmentBase");
+        track.put("segment_base", new JSONObject().put("initialization", "0-999").put("index_range", "1000-2000"));
+        BiliVideoClient client = dashClient(false, new JSONObject().put("duration", 400)
+            .put("video", new JSONArray().put(track)).put("audio", new JSONArray().put(dashTrack(30280, true))));
+        try {
+            JSONObject playback = client.playback(BV, "62131", null, () -> {}, "https://localhost", 120, false);
+            assertEquals(80, playback.getInt("quality"));
+            JSONObject returned = playback.getJSONObject("dash").getJSONArray("video").getJSONObject(0);
+            assertEquals("0-999", returned.getString("initialization"));
+            assertEquals("1000-2000", returned.getString("indexRange"));
+            assertFalse(playback.toString().contains("private"));
+        } finally { client.clear(); }
+    }
+    @Test public void nativeDashCatalogIncludesOnlyValidReturnedQualities() throws Exception {
+        JSONObject invalidCodec = dashTrack(120, false).put("codecs", "unsupported.codec");
+        JSONObject invalidRanges = dashTrack(112, false).put("SegmentBase", new JSONObject().put("Initialization", "10-0").put("indexRange", "1000-2000"));
+        JSONObject invalidSource = dashTrack(116, false).put("baseUrl", "https://example.com/untrusted.mp4");
+        JSONObject dash = new JSONObject().put("duration", 400)
+            .put("video", new JSONArray().put(invalidCodec).put(invalidRanges).put(invalidSource).put(dashTrack(80, false)).put(dashTrack(32, false)))
+            .put("audio", new JSONArray().put(dashTrack(30280, true)));
+        BiliVideoClient client = dashClient(false, dash);
+        try {
+            JSONObject playback = client.playback(BV, "62131", null, () -> {}, "https://localhost", 120, false);
+            assertEquals(80, playback.getInt("quality"));
+            JSONArray qualities = playback.getJSONArray("qualities");
+            assertEquals(2, qualities.length());
+            assertEquals(80, qualities.getJSONObject(0).getInt("id"));
+            assertEquals(32, qualities.getJSONObject(1).getInt("id"));
+            assertEquals("avc1.640028", playback.getJSONObject("dash").getJSONArray("video").getJSONObject(0).getString("codecs"));
+            assertEquals("mp4a.40.2", playback.getJSONObject("dash").getJSONArray("audio").getJSONObject(0).getString("codecs"));
+        } finally { client.clear(); }
+    }
+    @Test public void nativeDashRequiresUsableAudioAndCurrentAccount() throws Exception {
+        JSONObject dash = new JSONObject().put("duration", 400).put("video", new JSONArray().put(dashTrack(80, false)))
+            .put("audio", new JSONArray().put(dashTrack(30280, true).put("mimeType", "audio/unknown")));
+        BiliVideoClient client = dashClient(false, dash);
+        try {
+            assertThrows(Exception.class, () -> client.playback(BV, "62131", null, () -> {}, "https://localhost", 80, false));
+            AtomicInteger checked = new AtomicInteger();
+            assertThrows(IllegalStateException.class, () -> client.playback(BV, "62131", null, () -> {
+                checked.incrementAndGet(); throw new IllegalStateException("Your account changed.");
+            }, "https://localhost", 80, false));
+            assertEquals(1, checked.get());
+        } finally { client.clear(); }
     }
     @Test public void nativeDownloadResolutionChecksSelectedPartWithoutExposingSourcesInTheBridge() throws Exception { BiliVideoClient client=client(new AtomicInteger()); BiliDownloads.Source source=client.download(BV,"62131","video",SESSION,()->{}); assertEquals(1,source.urls.size()); assertTrue(source.urls.get(0).startsWith("https://cdn.bilivideo.com/")); assertThrows(Exception.class,()->client.download(BV,"999","video",SESSION,()->{})); client.clear(); }
     private static final String BV = "BV1xx411c7mD", SESSION = "SESSDATA=fixture-session; bili_jct=fixture-csrf";

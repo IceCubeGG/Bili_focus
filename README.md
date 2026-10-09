@@ -1,6 +1,10 @@
-# Bili Focus 0.2.0 — playback-compatible, with save-folder manager
+# Bili Focus 0.3.0 — compatible default with optional video quality
 
 This third-party Bilibili app is designed for a more focused viewing experience. It lets you group creators and filter out videos based on tags you select.
+
+## Video quality
+
+The player starts in **Compatible**, preserving the working direct playback path. Select a resolution in **Quality** to switch manually while keeping your position, speed and paused/playing state. Available resolutions depend on the upload, account permissions and device; unsupported or failed selections automatically recover to Compatible. English and Simplified Chinese remain available. See [quality behavior and verification limits](docs/video-quality.md). [Download Windows and Android 0.3.0](https://github.com/IceCubeGG/Bili_focus/releases/tag/v0.3.0-video-quality). The published 0.2.0 compatibility release remains available.
 
 ## Save-folder manager
 
@@ -64,22 +68,23 @@ npm run test:feed
 npm run test:feed:fail-closed
 npm run test:subscribe
 npm run test:video
+npm run test:quality
 npm run package
 ```
 
 The packaging command generates an unpacked Windows application in `release/win-unpacked/`. An installer and code signing are not part of this milestone.
 
-`npm run test:desktop` uses an isolated temporary profile and needs network access. `npm run test:feed` verifies live guest pagination/tags and strict presets. `npm run test:feed:fail-closed` uses corrupt-rule fixtures. All 429 TypeScript tests pass, including folder migration/persistence, switching/forgetting, pinned queued destinations, media-only listings, directory limits and path boundaries, compatibility guards, translation coverage/settings migration, stream boundaries, and download validation. Native DASH transport helpers remain unused by this copy's watching UI.
+`npm run test:desktop` uses an isolated temporary profile and needs network access. `npm run test:feed` verifies live guest pagination/tags and strict presets. `npm run test:feed:fail-closed` uses corrupt-rule fixtures. The regression tests include folder migration/persistence, switching/forgetting, pinned queued destinations, media-only listings, directory limits and path boundaries, safe-default guards, codec selection, translation coverage/settings migration, stream boundaries, and download validation.
 
 `npm run test:subscribe` passes using an OS-encrypted synthetic account in a temporary profile with every native network request intercepted by local fixtures. It checks the real production bridge and renderer, followed-only original uploads, ordering/deduplication, Refresh/older-page retry, Browse-preset independence, visible verification failure, the real roster boundary, exact uploader filtering, toggle preservation, group creation/edit/restoration/deletion, all 417 uploads from a two-member group, group retry and removal of a member during a delayed page request, the open phone-width list/editor, and delayed-response rejection after sign-out. Optional `-- --screenshots` captures are clearly marked SIMULATED and stored in `.gradle-cache`; they require a working desktop compositor and were not generated in this run. This does not authenticate a real account or prove the current upstream followed-feed/roster schema works for a real session.
 
-`npm run test:video` passes against this copy's production page/bridge with an isolated encrypted synthetic session and local fixtures. It verifies the save-folder manager's search/type filters, file-open dispatch, traversal rejection, multiple folders, browsing vs. destination selection, safe forgetting/re-adding, and reload persistence in English/Chinese at 392-pixel width. It also creates WebM and muxed AVC/AAC MP4 clips and checks direct playback, legacy-only requests, no quality menu, parts/reload, fullscreen, byte-verified downloads, Danmu/comments/replies, account/part handle revocation, delayed cancellation and source restoration. Only two explicit fixture messages are posted; no real account is used.
+`npm run test:video` passes against this copy's production page/bridge with an isolated encrypted synthetic session and local fixtures. It verifies the save-folder manager's search/type filters, file-open dispatch, traversal rejection, multiple folders, browsing vs. destination selection, safe forgetting/re-adding, and reload persistence in English/Chinese at 392-pixel width. It also creates WebM and muxed AVC/AAC MP4 clips and checks direct default playback even when the quality catalog fails, parts/reload, fullscreen, byte-verified downloads, Danmu/comments/replies, account/part handle revocation, delayed cancellation and source restoration. Only two explicit fixture messages are posted; no real account is used. The separate `npm run test:quality` check exercises AVC/AAC DASH and quality recovery; see [verification details](docs/video-quality.md).
 
 The guest-only `node scripts/probe-video.mjs` check succeeded on October 5, 2026 for `BV1xx411c7mD`: normalized metadata, a 720p progressive MP4 rendition, an HTTP 206 media range, 691 ordinary Danmu items in the first segment, and the available first comment page. It does not load saved credentials or post anything. These observations cover one public video, not every archive or account entitlement. Real-account Danmu/comment posting remains unverified.
 
 This copy's optional `node scripts/probe-video.mjs` uses the legacy progressive route as a guest, without loading credentials or sending messages. On 2026-10-06 it returned progressive 720p for `BV1xx411c7mD`, HTTP 206 MP4 bytes, 691 Danmu items, and a comment page. This verifies one public upload's native access, not every video or phone decoding. Availability still depends on Bilibili and the selected upload.
 
-The 0.2.0 Android debug APK builds successfully. All 43 native unit tests pass, including supported library file types. The instrumentation test package compiles, including folder-registry migration/forgetting and corrupt-data preservation tests, but was not executed. The Android stream fix still reports the full resource length and acknowledges offsets already applied by the CDN. Intercepted playback requires known resource lengths below 2 GiB. No device/emulator was accessed. Actual phone playback, fullscreen/Back, folder picking/listing/exports and external file opening need device verification.
+The Android debug APK builds successfully. All 44 native unit tests pass, including supported library file types and quality boundaries. The instrumentation test package compiles, including folder-registry and DASH metadata tests, but was not executed. The Android stream fix still reports the full resource length and acknowledges offsets already applied by the CDN. Intercepted playback requires known resource lengths below 2 GiB. No device/emulator was accessed. Actual phone playback, fullscreen/Back, folder picking/listing/exports and external file opening need device verification.
 
 ## Integration references
 
