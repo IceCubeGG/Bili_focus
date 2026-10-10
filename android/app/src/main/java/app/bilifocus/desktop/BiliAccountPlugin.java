@@ -33,6 +33,7 @@ public final class BiliAccountPlugin extends Plugin {
     private final ExecutorService videoWork = Executors.newFixedThreadPool(3);
     private final AtomicInteger videoRequests = new AtomicInteger();
     private final BiliVideoClient videoClient = new BiliVideoClient();
+    private final BiliSearchClient searchClient = new BiliSearchClient();
     private final AtomicInteger feedRequests = new AtomicInteger();
     private final Handler qrHandler = new Handler(Looper.getMainLooper());
     private final AtomicInteger generation = new AtomicInteger();
@@ -260,7 +261,7 @@ public final class BiliAccountPlugin extends Plugin {
                     }
                     call.resolve(new JSObject().put("labels", labels));
                 }
-            } catch (Exception ignored) { call.reject("Could not load video labels. Please retry."); }
+            } catch (Exception ignored) { call.reject("Could not load video tags. Please retry."); }
             finally { feedRequests.decrementAndGet(); }
         });
     }
@@ -369,6 +370,7 @@ public final class BiliAccountPlugin extends Plugin {
     private static String videoCid(PluginCall call) { return BiliVideoClient.id(call.getData().opt("cid")); }
     private static String replyId(PluginCall call, String key) { Object value = call.getData().opt(key); return value == null || value == JSONObject.NULL ? null : BiliVideoClient.id(value); }
     @PluginMethod public void getVideoDetails(PluginCall call) { videoTask(call, false, (cookies, check) -> videoClient.details(videoBvid(call), cookies, check)); }
+    @PluginMethod public void searchVideos(PluginCall call) { videoTask(call, false, (cookies, check) -> searchClient.search(call.getData().opt("query"), call.getData().opt("cursor"), cookies, check)); }
     private int videoQuality(PluginCall call) {
         if (!call.getData().has("quality")) return 64;
         Object value = call.getData().opt("quality");

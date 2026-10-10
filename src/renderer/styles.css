@@ -341,6 +341,14 @@ h1 { font-family: 'Manrope', 'Segoe UI', sans-serif; font-size: clamp(28px, 2.8v
 
 /* Keep the compact visual hierarchy readable at every window size. */
 .topbar-left { display: flex; align-items: center; gap: 18px; }
+.search-back { margin-bottom: 20px; }
+.video-search-form { display: flex; align-items: stretch; gap: 12px; margin-bottom: 14px; }
+.search-input { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); background: var(--surface); }
+.search-input input { width: 100%; min-width: 0; border: 0; color: var(--ink); background: transparent; padding: 15px 0; font: inherit; }
+.search-input:focus-within { outline: 2px solid var(--pink-strong); outline-offset: 2px; }
+.search-page > .feed-count { display: block; margin: 23px 0; }
+.search-bvid { display: block; margin-top: 9px; color: var(--muted); font-size: 10px; }
+@media (max-width: 480px) { .video-search-form { gap: 8px; }.search-input { padding: 0 10px; gap: 7px; }.search-input input { font-size: 13px; }.video-search-form .button { padding: 0 13px; }.topbar .build-tag { display: none; } }
 .topbar-left .profile-button > .account-avatar { display: inline-flex; }
 .eyebrow, .quiet-label, .thumbnail-preview, .video-category,
 .video-example, .build-tag, .soon-label, .status-badge, .account-footnote,

@@ -35,6 +35,7 @@ const bridge: BilibiliBridge = {
   refreshAccount: () => ipcRenderer.invoke('account:refresh'),
   signOut: () => ipcRenderer.invoke('account:sign-out'),
   getRecommendationPage: (options) => ipcRenderer.invoke('browse:recommendations', options),
+  searchVideos: (options) => ipcRenderer.invoke('search:videos', options),
   getSubscriptionPage: (options) => ipcRenderer.invoke('subscribe:videos', options),
   getUploaderVideoPage: (options) => ipcRenderer.invoke('subscribe:uploader-videos', options),
   getFollowedUploaderPage: (options) => ipcRenderer.invoke('subscribe:uploaders', options),

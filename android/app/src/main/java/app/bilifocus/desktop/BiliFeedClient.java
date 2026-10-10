@@ -120,7 +120,7 @@ final class BiliFeedClient {
 
     static JSONObject normalizeLabels(String bvid, JSONObject body) throws Exception {
         JSONArray input = body.optJSONArray("data");
-        if (input == null || input.length() > 200) throw new Exception("Bilibili returned unexpected video labels.");
+        if (input == null || input.length() > 200) throw new Exception("Bilibili returned unexpected video tags.");
         JSONArray labels = new JSONArray();
         java.util.Set<String> seen = new java.util.HashSet<>();
         for (int index = 0; index < input.length() && labels.length() < 30; index++) {

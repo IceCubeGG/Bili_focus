@@ -7,13 +7,14 @@ import {
   ArrowRight, Check, CheckCircle2, CircleHelp, Clock3, Compass, Download, ExternalLink,
   FolderClosed, Heart, LoaderCircle, LockKeyhole, LogOut,
   Monitor, MonitorPlay, Moon, Palette, QrCode, RefreshCw,
-  Settings2, ShieldCheck, Sun,
+  Search, Settings2, ShieldCheck, Sun,
   UserRound, UsersRound, WifiOff, X,
 } from 'lucide-react';
 import { DEFAULT_SETTINGS } from '../shared/contracts';
 import type { AccountSnapshot, AppSettings, AppTab, LoginMethod, LoginSnapshot, PlatformInfo } from '../shared/contracts';
 import { platformBridge, platformKind } from '../platform/bridge';
 import BrowsePage from './BrowsePage';
+import SearchPage from './SearchPage';
 import SubscribePage from './SubscribePage';
 import VideoPage from './VideoPage';
 import DownloadsPanel from './DownloadsPanel';
@@ -199,7 +200,9 @@ export default function App() {
   const [working, setWorking] = useState<string | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [watch, setWatch] = useState<{ bvid: string; source: AppTab; scroll: number } | null>(null);
+  const [search, setSearch] = useState<{ scroll: number } | null>(null);
+  const searchRef = useRef(search); searchRef.current = search;
+  const [watch, setWatch] = useState<{ bvid: string; source: AppTab | 'search'; scroll: number } | null>(null);
   const watchRef = useRef(watch); watchRef.current = watch;
   const feedFocus = useRef<HTMLElement | null>(null);
   const settingRevision = useRef(0);
@@ -259,7 +262,7 @@ export default function App() {
   }, []);
 
   const navigate = useCallback((tab: AppTab) => {
-    setWatch(null); const url = new URL(location.href); url.hash = ''; history.replaceState(null, '', url.href);
+    setWatch(null); setSearch(null); const url = new URL(location.href); url.hash = ''; history.replaceState(null, '', url.href);
     updateSettings({ lastTab: tab });
   }, [updateSettings]);
   const openVideo = useCallback((bvid: string) => {
@@ -268,7 +271,7 @@ export default function App() {
       else {
       feedFocus.current = document.activeElement as HTMLElement | null;
       history.pushState({ biliVideo: true }, '', url.href);
-      setWatch({ bvid, source: settings.lastTab, scroll: window.scrollY });
+      setWatch({ bvid, source: searchRef.current ? 'search' : settings.lastTab, scroll: window.scrollY });
       }
     window.scrollTo(0, 0);
   }, [settings.lastTab]);
@@ -277,7 +280,20 @@ export default function App() {
     if (current) requestAnimationFrame(() => { window.scrollTo(0, current.scroll); feedFocus.current?.focus({ preventScroll: true }); });
   }, []);
   const closeVideo = useCallback(() => { if (history.state?.biliVideo) history.back(); else returnToFeed(); }, [returnToFeed]);
-  useEffect(() => { window.addEventListener('popstate', returnToFeed); return () => window.removeEventListener('popstate', returnToFeed); }, [returnToFeed]);
+  const returnFromSearch = useCallback(() => {
+    const current = searchRef.current; setSearch(null);
+    if (current) requestAnimationFrame(() => { window.scrollTo(0, current.scroll); document.querySelector<HTMLButtonElement>('.open-search')?.focus({ preventScroll: true }); });
+  }, []);
+  const closeSearch = useCallback(() => { if (history.state?.biliSearch) history.back(); else returnFromSearch(); }, [returnFromSearch]);
+  const openSearch = () => {
+    if (search || watch) return;
+    const url = new URL(location.href); url.hash = 'search'; history.pushState({ biliSearch: true }, '', url.href);
+    setSearch({ scroll: window.scrollY }); window.scrollTo(0, 0);
+  };
+  useEffect(() => {
+    const back = () => { if (watchRef.current) returnToFeed(); else if (searchRef.current) returnFromSearch(); };
+    window.addEventListener('popstate', back); return () => window.removeEventListener('popstate', back);
+  }, [returnToFeed, returnFromSearch]);
   const startLogin = useCallback((method: LoginMethod) => {
     if (!platform.loginMethods.includes(method) || !account.secureStorage) return;
     const revision = ++loginRevision.current;
@@ -315,8 +331,8 @@ export default function App() {
   }, [platform.kind]);
 
   return <LanguageContext.Provider value={settings.language}><div className="app-shell">
-    <header className="topbar"><div className="topbar-left"><button className="profile-button" onClick={() => navigate('options')} disabled={!ready} aria-label={account.profile ? t("Account settings for {0}", { 0: account.profile.name }) : t("Open account settings")} title={account.profile?.name ?? t("Your account")}><AccountAvatar account={account} /></button><span className="topbar-divider" /><div className="brand"><div className="brand-mark"><MonitorPlay size={24} /></div><span>Bili<span className="brand-light">Focus</span><span className="brand-dot" /></span></div></div><div className="topbar-right"><span className="build-tag">{platform.kind === 'browser' ? t("BROWSER PREVIEW") : platform.kind === 'android' ? t("ANDROID · V0.3") : t("DESKTOP · V0.3")}</span></div></header>
-    <main className={`main-content tab-${settings.lastTab}${watch ? ' tab-video' : ''}`} id="main-content"><div hidden={Boolean(watch)}>{!ready ? <LoadingState /> : settings.lastTab === 'browse' ? <BrowsePage key={`${account.profile?.uid ?? 'guest'}:${account.status === 'expired' ? 'expired' : 'available'}`} account={account} compactCards={settings.compactCards} platform={platform} openVideo={openVideo} /> : settings.lastTab === 'subscribe' ? <SubscribePage key={`${account.profile?.uid ?? 'guest'}:${account.status}`} account={account} compactCards={settings.compactCards} platform={platform} navigate={navigate} openVideo={openVideo} /> : <OptionsPage account={account} settings={settings} platform={platform} working={working} updateSettings={updateSettings} startLogin={startLogin} refreshAccount={refreshAccount} signOut={signOut} />}</div>{watch && <VideoPage key={`${watch.bvid}:${account.profile?.uid ?? 'guest'}:${account.status}`} bvid={watch.bvid} account={account} sourceLabel={watch.source === 'subscribe' ? t("Subscribe") : t("Browse")} close={closeVideo} openVideo={openVideo} />}</main>
+    <header className="topbar"><div className="topbar-left"><button className="profile-button" onClick={() => navigate('options')} disabled={!ready} aria-label={account.profile ? t("Account settings for {0}", { 0: account.profile.name }) : t("Open account settings")} title={account.profile?.name ?? t("Your account")}><AccountAvatar account={account} /></button><span className="topbar-divider" /><div className="brand"><div className="brand-mark"><MonitorPlay size={24} /></div><span>Bili<span className="brand-light">Focus</span><span className="brand-dot" /></span></div></div><div className="topbar-right"><button className="icon-button open-search" onClick={openSearch} disabled={!ready || Boolean(watch)} aria-label={t("Search videos")} aria-pressed={Boolean(search)} title={t("Search videos")}><Search size={21} /></button><span className="build-tag">{platform.kind === 'browser' ? t("BROWSER PREVIEW") : platform.kind === 'android' ? t("ANDROID · V0.4") : t("DESKTOP · V0.4")}</span></div></header>
+    <main className={`main-content tab-${settings.lastTab}${watch ? ' tab-video' : ''}`} id="main-content"><div hidden={Boolean(watch || search)}>{!ready ? <LoadingState /> : settings.lastTab === 'browse' ? <BrowsePage key={`${account.profile?.uid ?? 'guest'}:${account.status === 'expired' ? 'expired' : 'available'}`} account={account} compactCards={settings.compactCards} platform={platform} openVideo={openVideo} /> : settings.lastTab === 'subscribe' ? <SubscribePage key={`${account.profile?.uid ?? 'guest'}:${account.status}`} account={account} compactCards={settings.compactCards} platform={platform} navigate={navigate} openVideo={openVideo} /> : <OptionsPage account={account} settings={settings} platform={platform} working={working} updateSettings={updateSettings} startLogin={startLogin} refreshAccount={refreshAccount} signOut={signOut} />}</div>{search && <div hidden={Boolean(watch)}><SearchPage key={`${account.profile?.uid ?? 'guest'}:${account.status}`} compactCards={settings.compactCards} platform={platform} close={closeSearch} openVideo={openVideo} /></div>}{watch && <VideoPage key={`${watch.bvid}:${account.profile?.uid ?? 'guest'}:${account.status}`} bvid={watch.bvid} account={account} sourceLabel={watch.source === 'search' ? t("Search") : watch.source === 'subscribe' ? t("Subscribe") : t("Browse")} close={closeVideo} openVideo={openVideo} />}</main>
     <footer className="app-footer"><div className="footer-note"><span className="footer-status-dot" /><span>{platform.kind === 'browser' ? t("Interface preview · native app for sign-in") : t("A calmer way to Bilibili")}</span></div><nav className="bottom-nav" aria-label={t("Main navigation")}>{([['browse', 'Browse', Compass], ['subscribe', 'Subscribe', UsersRound], ['options', 'Options', Settings2]] as const).map(([tab, label, Icon]) => <button key={tab} className={settings.lastTab === tab ? 'active' : ''} onClick={() => navigate(tab)} aria-current={settings.lastTab === tab ? 'page' : undefined} disabled={!ready}><Icon size={21} strokeWidth={settings.lastTab === tab ? 2 : 1.7} /><span>{t(label)}</span>{settings.lastTab === tab && <span className="nav-dot" />}</button>)}</nav><span className="footer-version">{t("Made for your interests")}</span></footer>
     {notice && <div className={`toast ${notice.tone}`} role={notice.tone === 'error' ? 'alert' : 'status'}>{notice.tone === 'success' ? <CheckCircle2 size={18} /> : <CircleHelp size={18} />}<span>{t(notice.message)}</span><button className="icon-button" onClick={() => setNotice(null)} aria-label={t("Dismiss notification")}><X size={15} /></button></div>}
     {loginOpen && <LoginModal login={login} method={login.method ?? loginMethod} account={account} startLogin={() => startLogin(login.method ?? loginMethod)} close={closeLogin} />}

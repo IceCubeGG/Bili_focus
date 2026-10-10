@@ -9,6 +9,7 @@ import { SettingsStore } from './settings-store';
 import { ElectronWebLogin } from './web-login';
 import { BrowseStore } from './browse-store';
 import { RecommendationClient } from './recommendation-client';
+import { SearchClient } from './search-client';
 import { SubscriptionClient } from './subscription-client';
 import { SubscriptionGroupStore } from './subscription-group-store';
 import { VideoClient } from './video-client';
@@ -64,6 +65,7 @@ async function start(): Promise<void> {
     return state.profile && Number.isSafeInteger(state.profile.uid) && state.profile.uid > 0 && ['signed-in', 'offline'].includes(state.status) ? account!.getFeedCredentials() : null;
   }, () => account!.getSessionRevision(), fetch, Date.now, () => { void account!.refreshAccount(); });
   const subscriptionGroups = new SubscriptionGroupStore(directory);
+  const search = new SearchClient(() => account!.getFeedCredentials(), () => account!.getSessionRevision(), fetch, () => { void account!.refreshAccount(); });
   const subscriptionUid = () => {
     const state = account!.getAccount();
     if (!state.profile || !['signed-in', 'offline'].includes(state.status) || !account!.getFeedCredentials()) throw new Error('Sign in to manage your subscriptions.');
@@ -77,6 +79,7 @@ async function start(): Promise<void> {
   };
 
   const handlers: Record<string, (...args: unknown[]) => unknown> = {
+    'search:videos': (options) => search.searchVideos(options),
     'folders:get': () => downloads!.getSaveFolders(),
     'folders:control': (options) => downloads!.controlSaveFolder(options),
     'folders:files': (options) => downloads!.listSavedFiles(options),

@@ -1,6 +1,6 @@
 {
   "name": "bili-focus",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "A desktop and Android Bilibili companion with a user-controlled recommendation feed.",
@@ -23,6 +23,7 @@
     "test:subscribe": "electron scripts/smoke-subscribe.cjs",
     "test:video": "electron scripts/smoke-video.cjs",
     "test:quality": "electron scripts/smoke-quality.cjs",
+    "test:search": "electron scripts/smoke-search.cjs",
     "test:quality:live": "electron scripts/smoke-quality-live.cjs",
     "package": "npm run build && electron-builder --win --dir",
     "android:sync": "npm run build:web && cap sync android",

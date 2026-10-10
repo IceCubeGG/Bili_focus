@@ -144,14 +144,14 @@ const { tmpdir } = require('node:os');
 
         await openEditor();
         const impossibleLabel = `BiliFocusSmokeAbsentLabel${Date.now()}`;
-        await setInput('[aria-label="Label name"]', impossibleLabel);
-        await run(() => document.querySelector('[aria-label="Label name"]').closest('.entry-row').querySelector('button').click());
-        await waitFor(() => document.querySelectorAll('.preset-field .selected-rules button[aria-label^="Remove label"]').length === 1, 'added exact label');
+        await setInput('[aria-label="Tag name"]', impossibleLabel);
+        await run(() => document.querySelector('[aria-label="Tag name"]').closest('.entry-row').querySelector('button').click());
+        await waitFor(() => document.querySelectorAll('.preset-field .selected-rules button[aria-label^="Remove tag"]').length === 1, 'added exact label');
         saved = await saveEditor();
         active = saved.presets.find(value => value.id === saved.activePresetId);
         assert.equal(active.match, 'all');
         assert.deepEqual(active.labels, [impossibleLabel]);
-        await waitFor(() => !Array.from(document.querySelectorAll('[role="status"]')).some(value => value.textContent.includes('Checking video labels')) && document.querySelector('.feed-empty h2')?.textContent.includes('No matches'), 'completed strict AND filter', 60000);
+        await waitFor(() => !Array.from(document.querySelectorAll('[role="status"]')).some(value => value.textContent.includes('Checking video tags')) && document.querySelector('.feed-empty h2')?.textContent.includes('No matches'), 'completed strict AND filter', 60000);
         assert.equal(await run(() => document.querySelectorAll('.live-video-card').length), 0);
         passed('AND requires both exact tag and selected UID; no matching tag shows zero videos');
 

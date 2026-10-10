@@ -119,7 +119,7 @@ export class RecommendationClient {
 
   async getVideoLabels(options: unknown): Promise<VideoLabels[]> {
     const bvids = record(options)?.bvids;
-    if (!Array.isArray(bvids) || bvids.length > 50 || bvids.some((value) => typeof value !== 'string' || !BVID.test(value))) throw new Error('Invalid video label request.');
+    if (!Array.isArray(bvids) || bvids.length > 50 || bvids.some((value) => typeof value !== 'string' || !BVID.test(value))) throw new Error('Invalid video tag request.');
     const unique = [...new Set(bvids as string[])];
     const revision = this.revision();
     const results: VideoLabels[] = new Array(unique.length);
@@ -150,7 +150,7 @@ export class RecommendationClient {
     let value: VideoLabels;
     try {
       const data = await this.call('/x/tag/archive/tags', { bvid }, null);
-      if (!Array.isArray(data) || data.length > 100) throw new Error('Unexpected video labels.');
+      if (!Array.isArray(data) || data.length > 100) throw new Error('Unexpected video tags.');
       const labels = [...new Set(data.map((item) => verifiedLabel(record(item)?.tag_name)).filter((label): label is string => label !== null))];
       value = { bvid, labels, status: 'ready' };
     } catch { value = { bvid, labels: [], status: 'unavailable' }; }

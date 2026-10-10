@@ -161,7 +161,7 @@ describe('video label verification', () => {
 
   it.each([{}, { bvids: ['https://evil.example'] }, { bvids: Array(51).fill(bvid) }])('rejects unsupported label requests before contacting Bilibili', async (options) => {
     const request = vi.fn<typeof fetch>();
-    await expect(client(request).getVideoLabels(options)).rejects.toThrow('Invalid video label request');
+    await expect(client(request).getVideoLabels(options)).rejects.toThrow('Invalid video tag request');
     expect(request).not.toHaveBeenCalled();
   });
 });

@@ -23,6 +23,7 @@ function nativeContract(): BilibiliBridge {
     refreshAccount: vi.fn(async () => ({ ...account })),
     signOut: vi.fn(async () => ({ ...account })),
     getRecommendationPage: vi.fn(async () => ({ videos: [], cursor: null, hasMore: false })),
+    searchVideos: vi.fn(async () => ({ videos: [], cursor: null, hasMore: false, total: 0 })),
     getSubscriptionPage: vi.fn(async () => ({ videos: [], cursor: null, hasMore: false })),
     getUploaderVideoPage: vi.fn(async () => ({ videos: [], cursor: null, hasMore: false, total: 0 })),
     getFollowedUploaderPage: vi.fn(async () => ({ uploaders: [], cursor: null, hasMore: false, total: 0 })),
@@ -96,6 +97,8 @@ describe('cross-platform renderer bridge', () => {
     expect(capacitor.registerPlugin).toHaveBeenCalledExactlyOnceWith('BiliAccount');
     await platformBridge.startWebLogin();
     await platformBridge.startLogin();
+    await platformBridge.searchVideos({ query: '科技', cursor: '2' });
+    expect(native.searchVideos).toHaveBeenCalledExactlyOnceWith({ query: '科技', cursor: '2' });
     await platformBridge.cancelLogin();
     await platformBridge.refreshAccount();
     await platformBridge.signOut();

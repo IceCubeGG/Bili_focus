@@ -1,6 +1,12 @@
-# Bili Focus 0.3.0 — compatible default with optional video quality
+# Bili Focus 0.4.0 — video search and consistent tags
 
 This third-party Bilibili app is designed for a more focused viewing experience. It lets you group creators and filter out videos based on tags you select.
+
+## Video search
+
+Use the search icon in the top bar to search by keyword or an exact BV code. Keyword results support **Load more results**; a BV code looks up only that video. Open a thumbnail or title to watch, then use Back to return to the same search results. Explicit searches are separate from Browse presets. Search is shared by Windows and Android, supports English and Simplified Chinese, and keeps account and Bilibili-issued guest cookies in the native host. Deleted/private videos cannot be shown, and platform verification or network failures are reported with Retry rather than treated as empty results. See [search behavior](docs/search.md).
+
+The English interface now uses **tag**, not **label**, for video tags. Saved presets retain their existing format and remain compatible.
 
 ## Video quality
 
@@ -20,8 +26,8 @@ Android and Windows downloads are available in the **v0.2.0-save-folders** GitHu
 
 - Browse, Subscribe, and Options with keyboard-accessible navigation.
 - Live Browse candidates with real video metadata, Refresh, deduplicated pagination, and loading/empty/error states. Guest recommendations work without signing in.
-- Browse → Feed settings creates, edits, and selects saved label/uploader presets. Add uploaders from cards or enter their numeric UIDs; View labels loads exact Bilibili video tags.
-- Strict matching defaults to label **AND** uploader when both lists are filled, with an explicit **OR** choice. Unverified tags cannot match; empty results do not silently relax a preset. All recommendations is an explicit unfiltered selection.
+- Browse → Feed settings creates, edits, and selects saved tag/uploader presets. Add uploaders from cards or enter their numeric UIDs; View tags loads exact Bilibili video tags.
+- Strict matching defaults to tag **AND** uploader when both lists are filled, with an explicit **OR** choice. Unverified tags cannot match; empty results do not silently relax a preset. All recommendations is an explicit unfiltered selection.
 - Subscribe shows original video uploads from verified followed accounts, newest first, with Refresh and Load older uploads. Reposts, live streams, unrelated suggestions, and unverified authors are omitted. Subscribe never applies Browse presets and never substitutes guest recommendations when signed out.
 - Subscribe → Show subscriptions toggles an avatar/name list fetched from your actual followed-account roster, with search and Load more uploaders. Selecting an uploader opens their video library directly from their Bilibili space, newest first, with the total video count and Load older videos. Hiding the list preserves the library; All followed uploaders returns to the recent followed feed.
 - Create, rename, edit members, select, and delete local subscription groups, similar to Twitter Lists. Selecting a group combines its members' complete available video libraries, newest first, with a combined total and Load older videos. A creator can belong to several groups. Groups survive restart separately for each account on each device; they do not change Bilibili follows. Empty groups show no videos rather than broadening the feed.

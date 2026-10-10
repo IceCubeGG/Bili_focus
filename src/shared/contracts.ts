@@ -136,6 +136,7 @@ export interface BrowseSettings {
 export const DEFAULT_BROWSE_SETTINGS: BrowseSettings = { version: 1, activePresetId: null, presets: [] };
 
 export interface BilibiliBridge {
+  searchVideos(options: { query: string; cursor: string | null }): Promise<VideoSearchPage>;
   getSaveFolders(): Promise<SaveFoldersSnapshot>;
   controlSaveFolder(options: { id: string; action: 'select' | 'forget' }): Promise<SaveFoldersSnapshot>;
   listSavedFiles(options: { folderId: string }): Promise<SavedFilesSnapshot>;
@@ -178,3 +179,5 @@ export interface BilibiliBridge {
 declare global {
   interface Window { bilibili?: BilibiliBridge; }
 }
+
+export interface VideoSearchPage { videos: VideoCandidate[]; total: number; cursor: string | null; hasMore: boolean; }
