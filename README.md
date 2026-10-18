@@ -1,6 +1,12 @@
-# Bili Focus 0.4.0 — video search and consistent tags
+# Bili Focus 0.4.2 — Lightning icon
 
 This third-party Bilibili app is designed for a more focused viewing experience. It lets you group creators and filter out videos based on tags you select.
+
+The approved blue double-lightning icon now appears on Android launchers, the Windows executable/taskbar, the app header, and sign-in dialog. Android includes adaptive and monochrome layers. Regenerate packaged assets with `npm run icons:export`; see [branding notes](docs/branding.md). [Download Windows and Android 0.4.2](https://github.com/IceCubeGG/Bili_focus/releases/tag/v0.4.2-lightning-icon).
+
+## Android SMS/password sign-in
+
+0.4.1 corrects the authentication resource allowlist so GeeTest's current primary and fallback CAPTCHA endpoints can load, including on Android 14. CAPTCHA cookies are enabled only inside the isolated temporary authentication WebView; QR sign-in and the main app's cookie isolation are unchanged. Reload sign-in and sanitized load-error messages are available if the page or challenge cannot load. This is not a CAPTCHA bypass: Bilibili's official verification must still be completed. External Chrome/Custom Tabs login cannot automatically transfer its cookies into this app. See [the Android login notes](docs/android-migration.md).
 
 ## Video search
 

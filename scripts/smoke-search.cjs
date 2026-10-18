@@ -44,6 +44,8 @@ async function until(window, fn, message) { const end = Date.now() + 15000; whil
       };
       try {
         await until(window, () => document.querySelector('.open-search:not(:disabled)'), 'Search entry missing');
+        await until(window, () => { const image = document.querySelector('.brand-mark img'); return image?.complete && image.naturalWidth > 0; }, 'Packaged branding image missing');
+        assert.ok(await run(window, () => document.querySelector('link[rel="icon"]')?.href.includes('app-icon')));
         assert.equal((await run(window, () => window.bilibili.getAccount())).status, 'signed-out');
         await run(window, () => document.querySelector('.open-search').click());
         await until(window, () => document.querySelector('.search-page'), 'Search page missing');

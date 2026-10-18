@@ -6,7 +6,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Color;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Build;
 import android.os.Handler;
@@ -14,6 +13,9 @@ import android.os.Looper;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.SslErrorHandler;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -22,9 +24,9 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import java.io.ByteArrayInputStream;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -41,6 +43,8 @@ public final class WebLoginActivity extends Activity {
     private final BiliNativeClient client = new BiliNativeClient();
     private WebView webView;
     private TextView status;
+    private ProgressBar progress;
+    private boolean pageFailed;
     private boolean finishing;
     private boolean checking;
     private boolean chinese;
@@ -82,39 +86,78 @@ public final class WebLoginActivity extends Activity {
         });
         status = new TextView(this);
         status.setTextColor(Color.rgb(40, 44, 53));
-        status.setText(chinese ? "请在哔哩哔哩官方页面选择密码或短信登录。" : "Sign in on Bilibili's official page. Select password or SMS on that page.");
+        status.setText(instructions());
         status.setPadding(24, 12, 24, 12);
         layout.addView(status);
+        LinearLayout actions = new LinearLayout(this);
+        Button reload = new Button(this);
+        reload.setText(chinese ? "重新加载登录页" : "Reload sign-in");
+        reload.setOnClickListener(view -> {
+            if (finishing) return;
+            pageFailed = false;
+            status.setText(instructions());
+            webView.stopLoading();
+            webView.loadUrl(BiliNativeClient.LOGIN_URL);
+        });
+        actions.addView(reload, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         Button close = new Button(this);
         close.setText(chinese ? "取消登录" : "Cancel sign-in");
         close.setOnClickListener(view -> complete(RESULT_CANCELED, null));
-        layout.addView(close, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        actions.addView(close, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        layout.addView(actions);
+        progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        progress.setMax(100);
+        layout.addView(progress, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 6));
         webView = new WebView(this);
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
+        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(true);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        settings.setSafeBrowsingEnabled(true);
         settings.setSupportMultipleWindows(false);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override public void onProgressChanged(WebView view, int value) {
+                progress.setProgress(value);
+                progress.setVisibility(value < 100 ? android.view.View.VISIBLE : android.view.View.GONE);
+            }
+        });
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                if (request.isForMainFrame() && !BiliNativeClient.officialPage(request.getUrl())) {
+                if (request.isForMainFrame() && !AuthResourcePolicy.navigation(request.getUrl().toString())) {
                     status.setText(chinese ? "此登录窗口仅允许访问哔哩哔哩官方页面。" : "This sign-in window only opens official Bilibili pages.");
                     return true;
                 }
-                return !allowedResource(request.getUrl());
+                return !AuthResourcePolicy.resource(request.getUrl().toString(), request.isForMainFrame());
             }
 
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                if (!allowedResource(request.getUrl())
-                    || (request.isForMainFrame() && !BiliNativeClient.officialPage(request.getUrl()))) {
-                    return new WebResourceResponse("text/plain", "UTF-8", new ByteArrayInputStream(new byte[0]));
+                if (!AuthResourcePolicy.resource(request.getUrl().toString(), request.isForMainFrame())) {
+                    WebResourceResponse blocked = new WebResourceResponse("text/plain", "UTF-8", new ByteArrayInputStream(new byte[0]));
+                    blocked.setStatusCodeAndReasonPhrase(403, "Blocked");
+                    if (request.isForMainFrame()) showLoadError();
+                    return blocked;
                 }
                 return null;
+            }
+
+            @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (request.isForMainFrame() || AuthResourcePolicy.captchaResource(request.getUrl().toString())) showLoadError();
+            }
+
+            @Override public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
+                if (request.isForMainFrame() || AuthResourcePolicy.captchaResource(request.getUrl().toString())) showLoadError();
+            }
+
+            @Override public void onReceivedSslError(WebView view, SslErrorHandler ssl, android.net.http.SslError error) {
+                ssl.cancel();
+                showLoadError();
             }
         });
         layout.addView(webView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
@@ -133,7 +176,9 @@ public final class WebLoginActivity extends Activity {
         }
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
-        cookies.setAcceptThirdPartyCookies(webView, false);
+        // CAPTCHA frames need their own browser state. This applies only to this
+        // temporary, resource-restricted auth WebView, never the Capacitor renderer.
+        cookies.setAcceptThirdPartyCookies(webView, true);
         WebStorage.getInstance().deleteAllData();
         cookies.removeAllCookies(removed -> {
             cookies.flush();
@@ -145,16 +190,20 @@ public final class WebLoginActivity extends Activity {
         });
     }
 
-    private static boolean allowedResource(Uri uri) {
-        if (BiliNativeClient.officialPage(uri)) return true;
-        String host = uri.getHost();
-        if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getUserInfo() != null
-            || (uri.getPort() != -1 && uri.getPort() != 443) || host == null) return false;
-        host = host.toLowerCase(Locale.ROOT);
-        return host.endsWith(".bilibili.com") || host.equals("bilibili.com")
-            || host.endsWith(".hdslb.com") || host.equals("hdslb.com")
-            || host.equals("api.geetest.com") || host.equals("static.geetest.com")
-            || host.equals("monitor.geetest.com") || host.equals("static.geevisit.com");
+    private String instructions() {
+        return chinese ? "在官方页面选择密码或短信登录。输入手机号后，点击获取验证码并完成安全验证。"
+            : "Choose password or SMS on Bilibili's page. For SMS, enter your number, tap Get code, then complete the CAPTCHA.";
+    }
+
+    private void showLoadError() {
+        handler.post(() -> {
+            if (finishing || pageFailed) return;
+            pageFailed = true;
+            progress.setVisibility(android.view.View.GONE);
+            // Never show or log URLs: the official page may include phone/token parameters.
+            status.setText(chinese ? "登录页或安全验证加载失败。请检查网络后点击重新加载登录页；仍失败可使用扫码登录。"
+                : "The sign-in page or CAPTCHA could not load. Check your connection and tap Reload sign-in, or use QR sign-in.");
+        });
     }
 
     private void checkSession() {

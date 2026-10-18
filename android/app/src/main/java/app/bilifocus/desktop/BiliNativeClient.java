@@ -253,11 +253,7 @@ final class BiliNativeClient {
     }
 
     static boolean officialPage(Uri uri) {
-        String host = uri.getHost();
-        return "https".equalsIgnoreCase(uri.getScheme()) && uri.getUserInfo() == null
-            && (uri.getPort() == -1 || uri.getPort() == 443) && host != null
-            && (host.equalsIgnoreCase("passport.bilibili.com") || host.equalsIgnoreCase("account.bilibili.com")
-                || host.equalsIgnoreCase("www.bilibili.com"));
+        return uri != null && AuthResourcePolicy.navigation(uri.toString());
     }
 
     private JSONObject request(String endpoint, String cookieHeader, String form) throws Exception {

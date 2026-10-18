@@ -21,6 +21,7 @@ import { translator } from '../core/i18n';
 if (!app.isReady()) protocol.registerSchemesAsPrivileged([{ scheme: 'bili-media', privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, corsEnabled: true } }]);
 
 app.setName('Bili Focus');
+if (process.platform === 'win32') app.setAppUserModelId('app.bilifocus.desktop');
 let window: BrowserWindow | null = null;
 let account: AccountManager | null = null;
 let videos: VideoClient | null = null;
@@ -126,7 +127,7 @@ async function start(): Promise<void> {
 }
 
 function createWindow(): void {
-  window = new BrowserWindow({ width: 1180, height: 840, minWidth: 390, minHeight: 600, title: 'Bili Focus', backgroundColor: '#f7f8fa', show: false, webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true } });
+  window = new BrowserWindow({ width: 1180, height: 840, minWidth: 390, minHeight: 600, title: 'Bili Focus', icon: join(__dirname, '../assets/branding/app-icon.png'), backgroundColor: '#f7f8fa', show: false, webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true } });
   const current = window;
   current.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   current.webContents.on('will-navigate', (event) => event.preventDefault());
